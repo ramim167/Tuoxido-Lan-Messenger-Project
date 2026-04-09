@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/17"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.lanmessenger.GroupSettingsController"
+           styleClass="root"
+           style="-fx-background-color: -lm-bg; -fx-padding: 24;">
+
+    <ScrollPane fx:id="rootScroll" fitToWidth="true" styleClass="friends-scroll" prefViewportWidth="1120">
+        <content>
+            <StackPane alignment="TOP_CENTER">
+                <VBox fx:id="mainContent" maxWidth="1120" spacing="18" styleClass="profile-shell profile-shell-studio">
+
+                <HBox alignment="CENTER_LEFT" spacing="18" styleClass="profile-hero profile-hero-studio">
+                    <VBox spacing="4">
+                        <Label text="Group Settings" styleClass="profile-page-title"/>
+                        <Label text="Update only the group name, photo, and members from here." wrapText="true" styleClass="profile-page-subtitle"/>
+                    </VBox>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="Back to Group" onAction="#onBack" styleClass="profile-back-btn"/>
+                </HBox>
+
+                <VBox alignment="CENTER" spacing="12" styleClass="profile-card profile-card-visual">
+                    <StackPane prefWidth="132" prefHeight="132">
+                        <Label fx:id="groupImagePlaceholder"
+                               text="Group"
+                               alignment="CENTER"
+                               prefWidth="120"
+                               prefHeight="120"
+                               style="-fx-background-color: rgba(15,23,42,0.10); -fx-background-radius: 999; -fx-text-fill: -lm-muted; -fx-font-size: 14px; -fx-font-weight: 900;"/>
+                        <ImageView fx:id="groupImageView" fitWidth="120" fitHeight="120" preserveRatio="true" visible="false"/>
+                    </StackPane>
+                    <Label fx:id="groupNameLabel" text="" styleClass="profile-page-title"/>
+                </VBox>
+
+                <HBox spacing="16">
+                    <VBox spacing="10" styleClass="profile-card profile-card-editor" HBox.hgrow="ALWAYS">
+                        <Label text="Change group name" styleClass="friends-section-title"/>
+                        <Label text="Any member can edit the group name." styleClass="friends-page-subtitle"/>
+                        <TextField fx:id="groupNameField" promptText="Leave blank if you want no group name" styleClass="drawer-input"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="profile-card profile-card-editor" HBox.hgrow="ALWAYS">
+                        <Label text="Change group photo" styleClass="friends-section-title"/>
+                        <Label text="Any member can choose a new group photo." styleClass="friends-page-subtitle"/>
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <StackPane prefWidth="54" prefHeight="54">
+                                <Label fx:id="groupPhotoCardPlaceholder"
+                                       text="Group"
+                                       alignment="CENTER"
+                                       prefWidth="48"
+                                       prefHeight="48"
+                                       style="-fx-background-color: rgba(15,23,42,0.10); -fx-background-radius: 999; -fx-text-fill: -lm-muted; -fx-font-size: 10px; -fx-font-weight: 900;"/>
+                                <ImageView fx:id="groupPhotoCardImageView" fitWidth="48" fitHeight="48" preserveRatio="true" visible="false"/>
+                            </StackPane>
+                            <Label fx:id="groupPhotoNameLabel" text="" styleClass="profile-status"/>
+                        </HBox>
+                        <Button text="Choose Group Photo" onAction="#onChooseGroupPhoto" styleClass="secondary-btn"/>
+                        <Label fx:id="photoStatusLabel" text="No new photo selected" styleClass="muted-small"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="profile-card profile-card-editor" prefWidth="320" maxWidth="360">
+                        <Label text="Add members" styleClass="friends-section-title"/>
+                        <Label text="Add friends who are not already in this group." wrapText="true" styleClass="friends-page-subtitle"/>
+                        <ScrollPane fitToWidth="true" prefViewportHeight="210" styleClass="friends-scroll">
+                            <content>
+                                <VBox fx:id="friendCandidatesBox" spacing="8"/>
+                            </content>
+                        </ScrollPane>
+                    </VBox>
+                </HBox>
+
+                <VBox spacing="10" styleClass="profile-card profile-card-editor">
+                    <Label text="Group Members" styleClass="friends-section-title"/>
+                    <ScrollPane fitToWidth="true" prefViewportHeight="260" styleClass="friends-scroll">
+                        <content>
+                            <VBox fx:id="membersBox" spacing="10"/>
+                        </content>
+                    </ScrollPane>
+                </VBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label fx:id="statusLabel" text="" styleClass="profile-status" wrapText="true"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="saveBtn" text="Save Changes" onAction="#onSaveChanges" prefWidth="220" styleClass="send-btn"/>
+                </HBox>
+
+                </VBox>
+            </StackPane>
+        </content>
+    </ScrollPane>
+</StackPane>

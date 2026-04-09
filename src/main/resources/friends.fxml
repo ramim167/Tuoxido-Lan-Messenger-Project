@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/17"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.lanmessenger.FriendsController"
+           styleClass="root"
+           style="-fx-background-color: -lm-bg; -fx-padding: 26;">
+
+    <VBox maxWidth="1120"
+          minHeight="620"
+          spacing="18"
+          styleClass="friends-shell friends-shell-social">
+
+        <HBox alignment="CENTER_LEFT" spacing="14" styleClass="friends-hero friends-hero-social">
+            <VBox spacing="2">
+                <HBox.margin>
+                    <Insets left="18"/>
+                </HBox.margin>
+                <Label text="Friends Center" styleClass="friends-page-title"/>
+                <Label text="Discover people, manage connections and review incoming requests." styleClass="friends-page-subtitle"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Back" onAction="#onBackToMain" styleClass="friends-back-btn"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="friends-search-row">
+            <TextField fx:id="searchUserField"
+                       promptText="Search by name or @username"
+                       styleClass="message-field"
+                       HBox.hgrow="ALWAYS"
+                       onAction="#onSearchUser"/>
+            <Button fx:id="searchBtn" text="Search" styleClass="send-btn" onAction="#onSearchUser"/>
+        </HBox>
+
+        <HBox spacing="16" VBox.vgrow="ALWAYS">
+
+            <VBox spacing="10" HBox.hgrow="ALWAYS" prefWidth="360" styleClass="friends-section friends-section-primary">
+                <Label text="My Friends" styleClass="friends-section-title"/>
+                <ScrollPane fx:id="friendsScroll" fitToWidth="true" styleClass="friends-scroll" VBox.vgrow="ALWAYS">
+                    <content>
+                        <VBox fx:id="myFriendsBox" spacing="8" styleClass="friends-list-box"/>
+                    </content>
+                </ScrollPane>
+            </VBox>
+
+            <Separator orientation="VERTICAL" styleClass="friends-separator"/>
+
+            <VBox spacing="10" HBox.hgrow="ALWAYS" prefWidth="330" styleClass="friends-section friends-section-discovery">
+                <Label text="Search Results" styleClass="friends-section-title"/>
+                <ScrollPane fx:id="resultsScroll" fitToWidth="true" styleClass="friends-scroll" VBox.vgrow="ALWAYS">
+                    <content>
+                        <VBox fx:id="searchResultsBox" spacing="8" styleClass="friends-list-box"/>
+                    </content>
+                </ScrollPane>
+            </VBox>
+
+            <Separator orientation="VERTICAL" styleClass="friends-separator"/>
+
+            <VBox spacing="10" HBox.hgrow="ALWAYS" prefWidth="300" styleClass="friends-section friends-section-requests">
+                <Label text="Friend Requests" styleClass="friends-section-title"/>
+                <ScrollPane fx:id="requestsScroll" fitToWidth="true" styleClass="friends-scroll" VBox.vgrow="ALWAYS">
+                    <content>
+                        <VBox fx:id="requestListBox" spacing="8" styleClass="friends-list-box"/>
+                    </content>
+                </ScrollPane>
+            </VBox>
+
+        </HBox>
+    </VBox>
+</StackPane>

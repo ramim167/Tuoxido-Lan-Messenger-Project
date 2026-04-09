@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+
+<StackPane fx:id="rootPane" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml" fx:controller="com.lanmessenger.ProfileController" style="-fx-background-color: -lm-bg; -fx-padding: 24;">
+
+    <VBox fx:id="cardBox" maxWidth="860" spacing="18" alignment="TOP_CENTER" styleClass="profile-shell profile-shell-studio">
+
+        <HBox alignment="CENTER_LEFT" spacing="18" styleClass="profile-hero profile-hero-studio">
+            <VBox spacing="4">
+                <Label fx:id="titleLabel" text="Edit Profile" styleClass="profile-page-title"/>
+                <Label text="Shape how you appear across chat, search, and connection surfaces." wrapText="true" styleClass="profile-page-subtitle"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="backBtn" text="Back to Chat" onAction="#onBack" styleClass="profile-back-btn"/>
+        </HBox>
+
+        <HBox spacing="18" VBox.vgrow="ALWAYS">
+            <VBox alignment="CENTER" spacing="12" styleClass="profile-card" prefWidth="260" maxWidth="260">
+                <StackPane prefWidth="160" prefHeight="160">
+                    <ImageView fx:id="profileImageView" fitWidth="144" fitHeight="144"/>
+                </StackPane>
+                <Button fx:id="changePicBtn" text="Change Picture" onAction="#onChangePicture" styleClass="secondary-btn"/>
+                <Label text="A stronger visual identity helps people find and trust your profile faster." wrapText="true" styleClass="muted-small"/>
+            </VBox>
+
+            <VBox spacing="16" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" styleClass="profile-card profile-card-editor">
+                <VBox spacing="4">
+                    <Label text="Identity Editor" styleClass="friends-section-title"/>
+                    <Label text="These details show up where people interact with you across the product." styleClass="friends-page-subtitle"/>
+                </VBox>
+
+                <VBox spacing="4" alignment="CENTER_LEFT">
+                    <Label fx:id="nameLabel" text="Full Name" styleClass="profile-label"/>
+                    <TextField fx:id="nameField" styleClass="drawer-input"/>
+                </VBox>
+
+                <VBox spacing="4" alignment="CENTER_LEFT">
+                    <Label fx:id="usernameLabel" text="Username" styleClass="profile-label"/>
+                    <TextField fx:id="usernameField" styleClass="drawer-input"/>
+                </VBox>
+
+                <VBox spacing="4" alignment="CENTER_LEFT">
+                    <Label fx:id="dobLabel" text="Birthdate" styleClass="profile-label"/>
+                    <DatePicker fx:id="birthdatePicker" prefWidth="400"/>
+                </VBox>
+
+                <Region VBox.vgrow="ALWAYS"/>
+
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <Label fx:id="statusLabel" text="" styleClass="profile-status" wrapText="true"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button fx:id="saveBtn" text="Save Changes" onAction="#onSaveProfile" prefWidth="220" styleClass="send-btn"/>
+                </HBox>
+            </VBox>
+        </HBox>
+
+        <VBox spacing="8">
+            <Label text="My Moments" styleClass="friends-section-title"/>
+            <ScrollPane fitToWidth="true" styleClass="friends-scroll" VBox.vgrow="ALWAYS">
+                <content>
+                    <VBox fx:id="profileMomentsBox" spacing="12" styleClass="moments-feed"/>
+                </content>
+            </ScrollPane>
+        </VBox>
+
+    </VBox>
+</StackPane>

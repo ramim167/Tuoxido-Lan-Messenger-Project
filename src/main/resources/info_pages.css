@@ -1,0 +1,448 @@
+.info-root {
+    -fx-background-color: linear-gradient(to bottom right, #f6f8fb, #eef3f8 44%, #ffffff 100%);
+}
+
+.info-root > .viewport {
+    -fx-background-color: transparent;
+}
+
+.info-shell {
+    -fx-background-color: transparent;
+}
+
+.info-topbar {
+    -fx-background-color: rgba(255, 255, 255, 0.82);
+    -fx-background-radius: 26;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 26;
+    -fx-padding: 18 24 18 24;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.06), 16, 0.10, 0, 6);
+}
+
+.brand-logo-wrap {
+    -fx-background-color: rgba(255, 255, 255, 0.96);
+    -fx-background-radius: 16;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 16;
+    -fx-min-width: 42;
+    -fx-min-height: 42;
+    -fx-pref-width: 42;
+    -fx-pref-height: 42;
+    -fx-max-width: 42;
+    -fx-max-height: 42;
+    -fx-padding: 4;
+}
+
+.brand-title {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 17px;
+    -fx-font-weight: 800;
+}
+
+.brand-subtitle {
+    -fx-text-fill: #64748b;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+
+.nav-link {
+    -fx-background-color: transparent;
+    -fx-text-fill: #334155;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-border-color: transparent;
+    -fx-border-style: solid;
+    -fx-border-width: 0;
+    -fx-padding: 6 4 6 4;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.hyperlink {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-style: none;
+    -fx-effect: null;
+}
+
+.hyperlink:focused,
+.hyperlink:hover:focused,
+.hyperlink:armed,
+.hyperlink:visited {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-effect: null;
+}
+
+.hyperlink .text {
+    -fx-underline: false;
+}
+
+.nav-link:hover {
+    -fx-text-fill: #0f172a;
+}
+
+.nav-link:focused,
+.nav-link:hover:focused,
+.nav-link:visited,
+.nav-link:armed {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-style: none;
+    -fx-effect: null;
+    -fx-underline: false;
+}
+
+.nav-link-active {
+    -fx-text-fill: #0f172a;
+    -fx-border-color: transparent transparent #2563eb transparent;
+    -fx-border-width: 0 0 2 0;
+}
+
+.ghost-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-padding: 10 18 10 18;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 14;
+    -fx-cursor: hand;
+}
+
+.ghost-btn:hover {
+    -fx-background-color: white;
+}
+
+.hero-panel {
+    -fx-background-color: linear-gradient(to right, rgba(15, 23, 42, 0.96), rgba(30, 64, 175, 0.90));
+    -fx-background-radius: 34;
+    -fx-padding: 38 42 38 42;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.12), 18, 0.10, 0, 8);
+}
+
+.hero-kicker {
+    -fx-text-fill: rgba(255, 255, 255, 0.74);
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+}
+
+.hero-title {
+    -fx-text-fill: white;
+    -fx-font-size: 36px;
+    -fx-font-weight: 900;
+}
+
+.hero-copy {
+    -fx-text-fill: rgba(255, 255, 255, 0.82);
+    -fx-font-size: 14px;
+    -fx-line-spacing: 2px;
+}
+
+.metric-card {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 22;
+    -fx-padding: 18 18 18 18;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 22;
+}
+
+.metric-value {
+    -fx-text-fill: white;
+    -fx-font-size: 28px;
+    -fx-font-weight: 900;
+    -fx-text-overrun: clip;
+}
+
+.metric-value-compact {
+    -fx-font-size: 22px;
+}
+
+.metric-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
+.section-title {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 23px;
+    -fx-font-weight: 900;
+}
+
+.section-copy {
+    -fx-text-fill: #475569;
+    -fx-font-size: 13px;
+    -fx-line-spacing: 1px;
+}
+
+.grid-card {
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-background-radius: 24;
+    -fx-border-color: rgba(148, 163, 184, 0.22);
+    -fx-border-radius: 24;
+    -fx-padding: 24 24 24 24;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.04), 10, 0.08, 0, 4);
+}
+
+.card-kicker {
+    -fx-text-fill: #2563eb;
+    -fx-font-size: 11px;
+    -fx-font-weight: 800;
+}
+
+.card-title {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 17px;
+    -fx-font-weight: 800;
+}
+
+.card-copy {
+    -fx-text-fill: #475569;
+    -fx-font-size: 12px;
+    -fx-line-spacing: 1px;
+}
+
+.card-line {
+    -fx-background-color: linear-gradient(to right, #dbeafe, transparent);
+    -fx-background-radius: 999;
+    -fx-min-height: 3;
+    -fx-pref-height: 3;
+}
+
+.spotlight-panel {
+    -fx-background-color: rgba(255, 255, 255, 0.86);
+    -fx-background-radius: 30;
+    -fx-border-color: rgba(148, 163, 184, 0.18);
+    -fx-border-radius: 30;
+    -fx-padding: 28 30 28 30;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.03), 8, 0.06, 0, 3);
+}
+
+.mini-chip {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #334155;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 999;
+    -fx-padding: 6 10 6 10;
+}
+
+.team-avatar {
+    -fx-background-color: linear-gradient(to bottom right, #1d4ed8, #0f172a);
+    -fx-background-radius: 18;
+    -fx-min-width: 58;
+    -fx-min-height: 58;
+    -fx-pref-width: 58;
+    -fx-pref-height: 58;
+}
+
+.team-avatar-label {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: 900;
+}
+
+.faq-item {
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-background-radius: 22;
+    -fx-border-color: rgba(148, 163, 184, 0.18);
+    -fx-border-radius: 22;
+    -fx-padding: 18 20 18 20;
+    -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.03), 8, 0.06, 0, 3);
+}
+
+.faq-question {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+}
+
+.faq-answer {
+    -fx-text-fill: #475569;
+    -fx-font-size: 12px;
+}
+
+.features-page {
+    -fx-background-color:
+            radial-gradient(center 84% 18%, radius 28%, rgba(59,130,246,0.18), rgba(59,130,246,0.0) 70%),
+            linear-gradient(to bottom right, #eef7ff, #f8fbff 44%, #ffffff 100%);
+}
+
+.hero-features {
+    -fx-background-color:
+            radial-gradient(center 82% 18%, radius 40%, rgba(255,255,255,0.14), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(15,23,42,0.98), rgba(29,78,216,0.92));
+}
+
+.privacy-page {
+    -fx-background-color:
+            radial-gradient(center 14% 12%, radius 30%, rgba(16,185,129,0.16), rgba(16,185,129,0.0) 70%),
+            linear-gradient(to bottom right, #ecfdf5, #f0fdf4 44%, #ffffff 100%);
+}
+
+.hero-privacy {
+    -fx-background-color:
+            radial-gradient(center 84% 20%, radius 40%, rgba(255,255,255,0.12), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(6,78,59,0.98), rgba(16,185,129,0.88));
+}
+
+.developers-page {
+    -fx-background-color:
+            radial-gradient(center 82% 16%, radius 30%, rgba(236,72,153,0.16), rgba(236,72,153,0.0) 72%),
+            linear-gradient(to bottom right, #fff1f6, #fff7fb 48%, #ffffff 100%);
+}
+
+.hero-developers {
+    -fx-background-color:
+            radial-gradient(center 80% 20%, radius 40%, rgba(255,255,255,0.10), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(80,7,36,0.98), rgba(219,39,119,0.90));
+}
+
+.help-page {
+    -fx-background-color:
+            radial-gradient(center 14% 14%, radius 30%, rgba(249,115,22,0.14), rgba(249,115,22,0.0) 70%),
+            linear-gradient(to bottom right, #fff7ed, #fffaf5 48%, #ffffff 100%);
+}
+
+.hero-help {
+    -fx-background-color:
+            radial-gradient(center 80% 18%, radius 40%, rgba(255,255,255,0.12), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(124,45,18,0.98), rgba(249,115,22,0.88));
+}
+
+.privacy-shell .grid-card,
+.privacy-shell .spotlight-panel {
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+}
+
+.privacy-shell .card-kicker {
+    -fx-text-fill: #059669;
+}
+
+.privacy-shell .mini-chip {
+    -fx-background-color: #d1fae5;
+    -fx-text-fill: #065f46;
+}
+
+.privacy-shell .card-line {
+    -fx-background-color: linear-gradient(to right, #a7f3d0, transparent);
+}
+
+.privacy-shell .nav-link-active {
+    -fx-text-fill: #047857;
+    -fx-border-color: transparent transparent #10b981 transparent;
+}
+
+.developers-shell .grid-card {
+    -fx-background-color: linear-gradient(to bottom, rgba(255,255,255,0.96), rgba(252,231,243,0.88));
+}
+
+.developers-shell .card-kicker {
+    -fx-text-fill: #db2777;
+}
+
+.developers-shell .mini-chip {
+    -fx-background-color: #fce7f3;
+    -fx-text-fill: #9d174d;
+}
+
+.developers-shell .team-avatar {
+    -fx-background-color: linear-gradient(to bottom right, #db2777, #500724);
+}
+
+.developers-root {
+    -fx-background-color:
+            radial-gradient(center 82% 16%, radius 30%, rgba(236,72,153,0.16), rgba(236,72,153,0.0) 72%),
+            linear-gradient(to bottom right, #fff1f6, #fff7fb 48%, #ffffff 100%);
+}
+
+.developers-root > .viewport {
+    -fx-background-color: transparent;
+}
+
+.developers-shell {
+    -fx-background-color: transparent;
+}
+
+.developers-hero-panel {
+    -fx-background-color:
+            radial-gradient(center 80% 20%, radius 40%, rgba(255,255,255,0.10), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(80,7,36,0.98), rgba(219,39,119,0.90));
+    -fx-background-radius: 34;
+    -fx-padding: 38 42 38 42;
+    -fx-effect: dropshadow(three-pass-box, rgba(80,7,36,0.12), 18, 0.10, 0, 8);
+}
+
+.help-shell .faq-item {
+    -fx-background-color: linear-gradient(to bottom, rgba(255,255,255,0.98), rgba(255,247,237,0.88));
+}
+
+.privacy-root {
+    -fx-background-color:
+            radial-gradient(center 14% 12%, radius 30%, rgba(16,185,129,0.16), rgba(16,185,129,0.0) 70%),
+            linear-gradient(to bottom right, #ecfdf5, #f0fdf4 44%, #ffffff 100%);
+}
+
+.privacy-root > .viewport {
+    -fx-background-color: transparent;
+}
+
+.privacy-shell {
+    -fx-background-color: transparent;
+}
+
+.privacy-hero-panel {
+    -fx-background-color:
+            radial-gradient(center 84% 20%, radius 40%, rgba(255,255,255,0.12), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(6,78,59,0.98), rgba(16,185,129,0.88));
+    -fx-background-radius: 34;
+    -fx-padding: 38 42 38 42;
+    -fx-effect: dropshadow(three-pass-box, rgba(6,78,59,0.12), 18, 0.10, 0, 8);
+}
+
+.privacy-shell .grid-card,
+.privacy-shell .spotlight-panel {
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+}
+
+.help-root {
+    -fx-background-color:
+            radial-gradient(center 14% 14%, radius 30%, rgba(249,115,22,0.14), rgba(249,115,22,0.0) 70%),
+            linear-gradient(to bottom right, #fff7ed, #fffaf5 48%, #ffffff 100%);
+}
+
+.help-root > .viewport {
+    -fx-background-color: transparent;
+}
+
+.help-shell {
+    -fx-background-color: transparent;
+}
+
+.help-hero-panel {
+    -fx-background-color:
+            radial-gradient(center 80% 18%, radius 40%, rgba(255,255,255,0.12), rgba(255,255,255,0.0) 72%),
+            linear-gradient(to right, rgba(124,45,18,0.98), rgba(249,115,22,0.88));
+    -fx-background-radius: 34;
+    -fx-padding: 38 42 38 42;
+    -fx-effect: dropshadow(three-pass-box, rgba(124,45,18,0.12), 18, 0.10, 0, 8);
+}
+
+.help-shell .faq-item {
+    -fx-background-color: linear-gradient(to bottom, rgba(255,255,255,0.98), rgba(255,247,237,0.88));
+}

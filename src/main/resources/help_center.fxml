@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<ScrollPane fx:id="root"
+            xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.lanmessenger.HelpCenterController"
+            fitToWidth="true"
+            hbarPolicy="NEVER"
+            vbarPolicy="AS_NEEDED"
+            styleClass="help-root">
+    <content>
+        <VBox styleClass="help-shell" spacing="28">
+            <padding>
+                <Insets top="24" right="28" bottom="28" left="28"/>
+            </padding>
+
+            <HBox styleClass="info-topbar" alignment="CENTER_LEFT" spacing="14">
+                <StackPane styleClass="brand-logo-wrap">
+                    <ImageView fitWidth="40" preserveRatio="true" smooth="true">
+                        <image>
+                            <Image url="@assets/logo.png"/>
+                        </image>
+                    </ImageView>
+                </StackPane>
+                <VBox spacing="1">
+                    <Label text="Tuoxido" styleClass="brand-title"/>
+                    <Label text="Messaging, refined for clarity" styleClass="brand-subtitle"/>
+                </VBox>
+                <Region HBox.hgrow="ALWAYS"/>
+                <HBox spacing="18" alignment="CENTER_RIGHT">
+                    <Hyperlink text="Features" onAction="#onOpenFeatures" styleClass="nav-link" focusTraversable="false"/>
+                    <Hyperlink text="Privacy and safety" onAction="#onOpenPrivacySafety" styleClass="nav-link" focusTraversable="false"/>
+                    <Hyperlink text="For developers" onAction="#onOpenDevelopers" styleClass="nav-link" focusTraversable="false"/>
+                    <Hyperlink text="Help Centre" onAction="#onOpenHelpCenter" styleClass="nav-link nav-link-active" focusTraversable="false"/>
+                </HBox>
+                <Button text="Back to Login" onAction="#onBackToLogin" styleClass="ghost-btn"/>
+            </HBox>
+
+            <HBox styleClass="help-hero-panel" spacing="28">
+                <VBox spacing="14" HBox.hgrow="ALWAYS">
+                    <Label text="Help center" styleClass="hero-kicker"/>
+                    <Label text="Quick answers for the actions users perform most." wrapText="true" styleClass="hero-title"/>
+                    <Label text="This page covers account access, friend management, messaging controls, and safety actions so users can solve common issues without leaving the app." wrapText="true" styleClass="hero-copy"/>
+                </VBox>
+                <VBox spacing="16" minWidth="250" maxWidth="250">
+                    <VBox styleClass="metric-card" spacing="4">
+                        <Label text="Task-based help" wrapText="true" styleClass="metric-value"/>
+                        <Label text="Guidance is grouped by real user tasks like reset, connect, block, and organize." wrapText="true" styleClass="metric-label"/>
+                    </VBox>
+                    <VBox styleClass="metric-card" spacing="4">
+                        <Label text="Project-aware support" wrapText="true" styleClass="metric-value"/>
+                        <Label text="Answers match Tuoxido features including friend requests, archives, moments, and account verification." wrapText="true" styleClass="metric-label"/>
+                    </VBox>
+                </VBox>
+            </HBox>
+
+            <VBox spacing="10">
+                <Label text="Common questions" styleClass="section-title"/>
+                <Label text="If something feels blocked, start with these steps before escalating to direct support." wrapText="true" styleClass="section-copy"/>
+            </VBox>
+
+            <VBox spacing="14">
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="How do I access my account if I forgot my password?" styleClass="faq-question"/>
+                    <Label text="From the login screen, open Forgot Password and submit your account email. Tuoxido sends a reset link through Firebase Auth so you can set a new password securely." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="How do I start a new connection inside Tuoxido?" styleClass="faq-question"/>
+                    <Label text="Open the Friends area, search by name or username, and send a request. Once accepted, the user appears in your active contact list." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="What can I do if someone should no longer contact me?" styleClass="faq-question"/>
+                    <Label text="Use the block option from the relationship tools. Blocking removes unwanted interaction paths and helps keep your workspace safe." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="Can I keep my workspace organized without deleting everything?" styleClass="faq-question"/>
+                    <Label text="Yes. Archived conversations move older threads out of the live inbox while keeping message history available when you need it." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="Why am I asked to verify my email after sign-up?" styleClass="faq-question"/>
+                    <Label text="Email verification confirms account ownership and helps reduce fake accounts. Complete verification from your inbox before full use." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+                <VBox styleClass="faq-item" spacing="8">
+                    <Label text="Does Tuoxido support voice and video calling?" styleClass="faq-question"/>
+                    <Label text="Yes. Tuoxido includes peer-to-peer audio and video calling so contacts can move from text chat to live conversation when both sides are available." wrapText="true" styleClass="faq-answer"/>
+                </VBox>
+            </VBox>
+        </VBox>
+    </content>
+</ScrollPane>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<StackPane styleClass="root" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml" fx:controller="com.lanmessenger.BlockedUsersController" style="-fx-background-color: -lm-bg; -fx-padding: 30;">
+
+    <VBox maxWidth="550" maxHeight="600" spacing="20" style="-fx-background-color: -lm-panel; -fx-padding: 25; -fx-background-radius: 18; -fx-border-color: -lm-border; -fx-border-width: 1; -fx-border-radius: 18; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 15, 0.1, 0, 4);">
+
+        <HBox alignment="CENTER_LEFT" spacing="15">
+            <Button text="Back" onAction="#onBackToMain" style="-fx-background-color: transparent; -fx-text-fill: -lm-text; -fx-cursor: hand; -fx-font-weight: 800; -fx-font-size: 14px;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label text="Blocked Users" style="-fx-font-size: 20px; -fx-font-weight: 900; -fx-text-fill: -lm-text;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Region prefWidth="40"/>
+        </HBox>
+
+        <Separator style="-fx-background-color: -lm-border; -fx-opacity: 0.5;"/>
+
+        <ScrollPane fitToWidth="true" style="-fx-background-color: transparent; -fx-border-color: transparent;" VBox.vgrow="ALWAYS">
+            <VBox fx:id="blockedUsersList" spacing="10" style="-fx-padding: 5;"/>
+        </ScrollPane>
+
+    </VBox>
+</StackPane>

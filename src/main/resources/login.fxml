@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<ScrollPane fx:id="root"
+            xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml"
+            xmlns:ikonli="http://kordamp.org/ikonli/javafx"
+            fx:controller="com.lanmessenger.LoginController"
+            fitToWidth="true"
+            fitToHeight="true"
+            hbarPolicy="NEVER"
+            vbarPolicy="AS_NEEDED"
+            pannable="true"
+            onMousePressed="#onBackgroundClick"
+            styleClass="login-root login-page">
+
+    <BorderPane fx:id="contentRoot">
+
+        <top>
+            <HBox styleClass="topbar login-topbar" alignment="CENTER_LEFT">
+                <padding>
+                    <Insets top="18" right="32" bottom="10" left="32"/>
+                </padding>
+
+                <ImageView fx:id="logoImage" fitHeight="80" preserveRatio="true"/>
+
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <HBox spacing="18" alignment="CENTER_RIGHT">
+                    <Hyperlink text="Features"
+                               onAction="#onOpenFeatures"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="Privacy and safety"
+                               onAction="#onOpenPrivacySafety"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="For developers"
+                               onAction="#onOpenDevelopers"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="Help Centre"
+                               onAction="#onOpenHelpCenter"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                </HBox>
+            </HBox>
+        </top>
+
+        <center>
+            <HBox styleClass="content login-content" alignment="CENTER" spacing="40">
+                <padding>
+                    <Insets top="10" right="32" bottom="32" left="32"/>
+                </padding>
+
+                <VBox styleClass="left login-left"
+                      spacing="16"
+                      alignment="TOP_LEFT"
+                      maxWidth="430">
+
+                    <Text text="Distance doesn't&#10;matter&#10;words do"
+                          styleClass="headline"
+                          lineSpacing="-6"/>
+
+                    <Label wrapText="true"
+                           text="Crafting a digital sanctuary for authentic voices, where stories are shared, ideas are born, and friendship thrives without boundaries."
+                           styleClass="subtext"/>
+
+                    <VBox spacing="10" styleClass="form login-form">
+
+                        <TextField fx:id="emailField"
+                                   promptText="Email address or phone number"/>
+
+                        <HBox alignment="CENTER_LEFT" spacing="6">
+
+                            <PasswordField fx:id="passwordField"
+                                           promptText="Password"
+                                           prefWidth="240"/>
+
+                            <TextField fx:id="passwordVisibleField"
+                                       promptText="Password"
+                                       prefWidth="240"
+                                       visible="false"
+                                       managed="false"/>
+
+                            <Button fx:id="togglePassBtn"
+                                    onAction="#togglePasswordVisibility"
+                                    styleClass="eye-btn"
+                                    visible="false"
+                                    managed="false">
+                                <graphic>
+                                    <FontIcon fx:id="eyeIcon"
+                                              iconLiteral="mdi2e-eye"
+                                              iconSize="16"
+                                              styleClass="eye-icon"/>
+                                </graphic>
+                            </Button>
+                        </HBox>
+
+                        <HBox spacing="12"
+                              alignment="CENTER_LEFT"
+                              styleClass="actions">
+
+                            <Button fx:id="loginBtn"
+                                    text="Log In"
+                                    onAction="#onLogin"
+                                    styleClass="primary-btn"/>
+
+                            <Hyperlink text="Forgotten your password?"
+                                       onAction="#onForgotPassword"
+                                       styleClass="link"/>
+                        </HBox>
+
+                        <HBox alignment="CENTER_LEFT"
+                              spacing="2"
+                              styleClass="signup-row">
+                            <VBox.margin>
+                                <Insets top="-10"/>
+                            </VBox.margin>
+
+                            <Label text="Don't have an account?" styleClass="muted"/>
+                            <Hyperlink text="Create one"
+                                       onAction="#onGoToSignUp"
+                                       styleClass="link"/>
+                        </HBox>
+
+                        <Label fx:id="statusLabel"
+                               text=""
+                               styleClass="status"/>
+                    </VBox>
+                </VBox>
+
+                <StackPane styleClass="right login-right" maxWidth="560" prefWidth="560">
+                    <ImageView fx:id="funImage"
+                                styleClass="visual-illustration"
+                                preserveRatio="true"
+                                smooth="true"
+                                cache="true"
+                                fitWidth="420"/>
+                </StackPane>
+
+            </HBox>
+        </center>
+
+    </BorderPane>
+
+</ScrollPane>

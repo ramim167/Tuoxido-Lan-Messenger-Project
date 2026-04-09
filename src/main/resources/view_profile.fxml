@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+
+<StackPane styleClass="root" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml" fx:controller="com.lanmessenger.ViewProfileController" style="-fx-background-color: -lm-bg; -fx-padding: 24;">
+
+    <VBox maxWidth="900" spacing="16" styleClass="profile-shell profile-shell-studio">
+
+        <HBox alignment="CENTER_LEFT" spacing="14" styleClass="profile-hero profile-hero-studio">
+            <Label text="User Profile" styleClass="profile-page-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Back" onAction="#onBack" styleClass="profile-back-btn"/>
+        </HBox>
+
+        <HBox spacing="18" alignment="CENTER_LEFT" styleClass="profile-card profile-card-visual">
+            <StackPane styleClass="profile-avatar-ring">
+                <ImageView fx:id="profileImageView" fitWidth="120" fitHeight="120"/>
+            </StackPane>
+            <VBox spacing="6">
+                <Label fx:id="nameLabel" text="Loading..." styleClass="profile-page-title"/>
+                <Label fx:id="usernameLabel" text="@loading" styleClass="muted"/>
+                <Label fx:id="dobLabel" text="Not provided" styleClass="profile-status"/>
+            </VBox>
+        </HBox>
+
+        <VBox spacing="8">
+            <Label text="Moments" styleClass="friends-section-title"/>
+            <ScrollPane fitToWidth="true" styleClass="friends-scroll" VBox.vgrow="ALWAYS">
+                <content>
+                    <VBox fx:id="profileMomentsBox" spacing="12" styleClass="moments-feed"/>
+                </content>
+            </ScrollPane>
+        </VBox>
+
+    </VBox>
+</StackPane>

@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<BorderPane fx:id="rootPane"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.lanmessenger.MainController">
+
+    <center>
+                <StackPane>
+        <HBox fx:id="appRoot" styleClass="app-root">
+
+            <VBox fx:id="sidebar" styleClass="sidebar" spacing="14"
+                  pickOnBounds="true"
+                  onMouseEntered="#onSidebarEnter"
+                  onMouseExited="#onSidebarExit">
+
+                <Button fx:id="chatBtn" styleClass="nav-btn" onAction="#onChatClick">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2c-chat-outline" styleClass="nav-icon"/>
+                                <Label text="Chats" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+                <Button fx:id="btnFriends" styleClass="nav-btn" onAction="#onFriendsClick">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2a-account-multiple" styleClass="nav-icon"/>
+                                <Label text="Friends" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+                <Button fx:id="btnMoments" styleClass="nav-btn" onAction="#onMomentsClick">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2c-card-text-outline" styleClass="nav-icon"/>
+                                <Label text="Moments" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+                <Button fx:id="archiveBtn" styleClass="nav-btn" onAction="#onArchiveClick">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2a-archive-outline" styleClass="nav-icon"/>
+                                <Label text="Archive" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+                <Region VBox.vgrow="ALWAYS"/>
+
+                <Button fx:id="profileBtn" styleClass="nav-btn" onAction="#onOpenProfile">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2a-account" styleClass="nav-icon"/>
+                                <Label text="Profile" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+                <Button fx:id="settingsBtn" styleClass="nav-btn" onAction="#onOpenSettings">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2c-cog-outline" styleClass="nav-icon"/>
+                                <Label text="Settings" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
+
+            </VBox>
+
+            <VBox styleClass="list-panel">
+                <HBox styleClass="list-header" alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Chats" styleClass="h1"/>
+                </HBox>
+
+                <HBox styleClass="search-wrap" spacing="10" alignment="CENTER_LEFT">
+                    <TextField fx:id="searchField" promptText="Search friends..." styleClass="search" HBox.hgrow="ALWAYS" minWidth="200"/>
+
+                    <Button onAction="#onOpenCreateGroup" styleClass="create-group-btn">
+                        <tooltip>
+                            <Tooltip text="Create group"/>
+                        </tooltip>
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2a-account-multiple" styleClass="create-group-icon"/>
+                        </graphic>
+                    </Button>
+                </HBox>
+
+                <ListView fx:id="usersList" styleClass="users-list" VBox.vgrow="ALWAYS"/>
+            </VBox>
+
+            <BorderPane styleClass="chat-panel" HBox.hgrow="ALWAYS">
+
+                <top>
+                    <HBox styleClass="chat-header" spacing="10" alignment="CENTER_LEFT">
+                        <ImageView fx:id="chatAvatarView" fitWidth="36" fitHeight="36" preserveRatio="true" visible="false" managed="false" styleClass="chat-avatar"/>
+                        <VBox fx:id="chatHeaderBox" spacing="2" alignment="CENTER_LEFT">
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label fx:id="chatTitleLabel" text="Demo1" styleClass="h1"/>
+                                <Label fx:id="chatSubtitleLabel" text="Active now" styleClass="muted"/>
+                            </HBox>
+                        </VBox>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <HBox spacing="10" alignment="CENTER_RIGHT">
+                            <Button fx:id="audioCallBtn" onAction="#onAudioCallClick"
+                                    disable="true"
+                                    style="-fx-background-color: transparent; -fx-cursor: hand;">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2p-phone" iconSize="20" styleClass="drawer-item-icon"/>
+                                </graphic>
+                            </Button>
+                            <Button fx:id="videoCallBtn" onAction="#onVideoCallClick"
+                                    disable="true"
+                                    style="-fx-background-color: transparent; -fx-cursor: hand;">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2v-video" iconSize="24" styleClass="drawer-item-icon"/>
+                                </graphic>
+                            </Button>
+                        </HBox>
+
+                    </HBox>
+                </top>
+
+                <center>
+                    <ScrollPane fx:id="messagesScroll" fitToWidth="true" styleClass="chat-scroll">
+                        <content>
+                            <VBox fx:id="messagesBox" styleClass="messages-box" spacing="6"/>
+                        </content>
+                    </ScrollPane>
+                </center>
+
+                <bottom>
+                    <VBox fx:id="composerContainer" spacing="0">
+                        <HBox styleClass="composer" spacing="10" alignment="CENTER">
+                            <Button fx:id="attachmentBtn" onAction="#onAttachmentClick" styleClass="attach-btn">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2f-file-document-outline" styleClass="attach-icon"/>
+                                </graphic>
+                            </Button>
+                            <Button fx:id="emojiBtn" text="🙂" onAction="#onOpenEmojiPicker" styleClass="emoji-btn"/>
+                            <TextField fx:id="messageField" promptText="Aa" styleClass="message-field" HBox.hgrow="ALWAYS" onAction="#onSend"/>
+                            <Button fx:id="sendBtn" text="Send" onAction="#onSend" styleClass="send-btn"/>
+                        </HBox>
+                    </VBox>
+                </bottom>
+
+            </BorderPane>
+        </HBox>
+
+        <StackPane fx:id="imagePreviewOverlay" visible="false" managed="false" styleClass="image-preview-overlay" alignment="CENTER" pickOnBounds="true">
+            <AnchorPane>
+                <BorderPane fx:id="imagePreviewRoot" styleClass="image-preview-root"
+                            AnchorPane.topAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0">
+                    <top>
+                        <HBox styleClass="image-preview-header" alignment="CENTER_LEFT" spacing="10">
+                            <Button onAction="#onCloseImagePreview" styleClass="image-preview-back">
+                                <graphic>
+                                    <FontIcon iconLiteral="mdi2c-chevron-left" styleClass="image-preview-back-icon"/>
+                                </graphic>
+                            </Button>
+                            <Label text="Photo" styleClass="image-preview-title"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                        </HBox>
+                    </top>
+                    <center>
+                        <StackPane fx:id="imagePreviewPane" styleClass="image-preview-pane">
+                            <ImageView fx:id="imagePreviewView" preserveRatio="true" smooth="true" styleClass="image-preview-view"/>
+                        </StackPane>
+                    </center>
+                </BorderPane>
+            </AnchorPane>
+        </StackPane>
+
+        <StackPane fx:id="logoutOverlay" visible="false" managed="false" styleClass="modal-overlay" alignment="CENTER">
+            <VBox styleClass="modal-card" spacing="10" maxWidth="360" alignment="CENTER_LEFT">
+                <Label text="Log out?" styleClass="modal-title"/>
+                <Label text="Are you sure you want to log out? You will need to sign in again." styleClass="modal-text" wrapText="true"/>
+                <HBox spacing="10" alignment="CENTER">
+                    <Button text="No" styleClass="secondary-btn" onAction="#onCancelLogout"/>
+                    <Button text="Yes, log out" styleClass="danger-btn" onAction="#onConfirmLogout"/>
+                </HBox>
+            </VBox>
+        </StackPane>
+
+        <VBox fx:id="settingsDrawer" styleClass="settings-drawer"
+              visible="false" managed="false"
+              prefWidth="240" minWidth="240" maxWidth="240"
+              translateX="-240"
+              StackPane.alignment="CENTER_LEFT">
+
+            <HBox styleClass="drawer-top" alignment="CENTER_LEFT" spacing="10">
+                <Button styleClass="back-btn" onAction="#onCloseSettingsDrawer">
+                    <graphic>
+                        <FontIcon iconLiteral="mdi2c-chevron-left" styleClass="back-icon"/>
+                    </graphic>
+                </Button>
+                <VBox spacing="1">
+                    <Label fx:id="drawerTitleLabel" text="Settings" styleClass="drawer-title"/>
+                    <Label text="Controls, theme and privacy" styleClass="drawer-subtitle"/>
+                </VBox>
+            </HBox>
+
+            <VBox fx:id="drawerContent" styleClass="drawer-content" spacing="8" VBox.vgrow="ALWAYS">
+
+                <Button fx:id="profileItemBtn" styleClass="drawer-item" onAction="#onToggleProfileSection">
+                    <graphic>
+                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="drawer-item-row">
+                            <FontIcon iconLiteral="mdi2a-account" styleClass="drawer-item-icon"/>
+                            <Label text="Profile" styleClass="drawer-item-text"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <FontIcon fx:id="profileChevron" iconLiteral="mdi2c-chevron-down" styleClass="drawer-item-chevron"/>
+                        </HBox>
+                    </graphic>
+                </Button>
+
+                <VBox fx:id="profileSection" styleClass="drawer-section" visible="false" managed="false" maxHeight="0" opacity="0" spacing="8">
+                    <VBox spacing="2">
+                        <Label text="Name" styleClass="drawer-small-label"/>
+                        <TextField fx:id="profileNameField" promptText="Your name" styleClass="drawer-input"/>
+                    </VBox>
+
+                    <VBox spacing="2">
+                        <Label text="Email" styleClass="drawer-small-label"/>
+                        <Label fx:id="profileEmailValue" text="—" styleClass="drawer-value-label"/>
+                    </VBox>
+
+                    <VBox spacing="4">
+                        <Label text="Username" styleClass="drawer-small-label"/>
+                        <TextField fx:id="profileUsernameField" promptText="e.g. lm_shanto" styleClass="drawer-input"/>
+                    </VBox>
+
+                    <VBox spacing="4">
+                        <Label text="Birthdate" styleClass="drawer-small-label"/>
+                        <DatePicker fx:id="profileBirthdatePicker" styleClass="drawer-input"/>
+                    </VBox>
+
+                    <VBox alignment="CENTER_LEFT" spacing="6">
+                        <Button text="Save" styleClass="primary-btn" onAction="#onSaveProfile"/>
+                        <Label fx:id="profileStatusLabel" text="" styleClass="drawer-hint" wrapText="true"/>
+                    </VBox>
+                </VBox>
+
+                <Button fx:id="blockedItemBtn" styleClass="drawer-item" onAction="#onOpenBlockedUsers">
+                    <graphic>
+                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="drawer-item-row">
+                            <FontIcon iconLiteral="mdi2b-block-helper" styleClass="drawer-item-icon"/>
+                            <Label text="Blocked Users" styleClass="drawer-item-text"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <FontIcon iconLiteral="mdi2c-chevron-right" styleClass="drawer-item-chevron"/>
+                        </HBox>
+                    </graphic>
+                </Button>
+
+                <VBox fx:id="blockedSection" styleClass="drawer-section" visible="false" managed="false" maxHeight="0" opacity="0">
+                    <VBox fx:id="blockedUsersList" spacing="8">
+                    </VBox>
+                </VBox>
+
+                <Button fx:id="themeItemBtn" styleClass="drawer-item" onAction="#onToggleThemeSection">
+                    <graphic>
+                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="drawer-item-row">
+                            <FontIcon iconLiteral="mdi2p-palette-outline" styleClass="drawer-item-icon"/>
+                            <Label text="Change Theme" styleClass="drawer-item-text"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <FontIcon fx:id="themeChevron" iconLiteral="mdi2c-chevron-down" styleClass="drawer-item-chevron"/>
+                        </HBox>
+                    </graphic>
+                </Button>
+
+                <VBox fx:id="themeSection" styleClass="drawer-section" visible="false" managed="false" maxHeight="0" opacity="0" spacing="10">
+                    <RadioButton fx:id="lightRadio" text="Light Mode" styleClass="theme-radio"/>
+                    <RadioButton fx:id="darkRadio"  text="Dark Mode"  styleClass="theme-radio"/>
+                </VBox>
+
+                <Button fx:id="logoutItemBtn" styleClass="drawer-item" onAction="#onLogout">
+                    <graphic>
+                        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="drawer-item-row">
+                            <FontIcon iconLiteral="mdi2l-logout" styleClass="drawer-item-icon"/>
+                            <Label text="Log Out" styleClass="drawer-item-text"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <FontIcon fx:id="logoutChevron" iconLiteral="mdi2c-chevron-right" styleClass="drawer-item-chevron"/>
+                        </HBox>
+                    </graphic>
+                </Button>
+
+            </VBox>
+        </VBox>
+        </StackPane>
+
+    </center>
+</BorderPane>

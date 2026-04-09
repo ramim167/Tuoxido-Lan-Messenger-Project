@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.BorderPane?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+<?import javafx.scene.layout.BorderPane?>
+
+<StackPane xmlns="http://javafx.com/javafx/17"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.lanmessenger.MomentsController"
+           styleClass="root"
+           style="-fx-background-color: -lm-bg; -fx-padding: 26;">
+
+    <VBox maxWidth="1120"
+          minHeight="640"
+          spacing="18"
+          styleClass="moments-shell">
+
+        <HBox alignment="CENTER_LEFT" spacing="14" styleClass="moments-hero">
+            <VBox spacing="2">
+                <HBox.margin>
+                    <Insets left="18"/>
+                </HBox.margin>
+                <Label text="Moments" styleClass="moments-title"/>
+                <Label text="Share updates with your friends and react in real time." styleClass="moments-subtitle"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button text="Back" onAction="#onBackToMain" styleClass="friends-back-btn"/>
+        </HBox>
+
+        <VBox spacing="10" styleClass="moments-composer">
+            <HBox spacing="12" alignment="TOP_LEFT">
+                <ImageView fx:id="myAvatar" fitWidth="36" fitHeight="36" preserveRatio="true" styleClass="moments-avatar"/>
+                <VBox spacing="8" HBox.hgrow="ALWAYS">
+                    <HBox spacing="10" alignment="TOP_LEFT">
+                        <TextArea fx:id="momentText"
+                                  promptText="Share your thought"
+                                  wrapText="true"
+                                  prefRowCount="2"
+                                  styleClass="moments-input"
+                                  HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="attachMomentImageBtn" onAction="#onAttachMomentImage" styleClass="moments-attach-btn">
+                            <graphic>
+                                <FontIcon iconLiteral="mdi2i-image-outline" styleClass="moments-attach-icon"/>
+                            </graphic>
+                        </Button>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label fx:id="selectedImageLabel" text="No photo selected" styleClass="moments-attach-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="charCountLabel" text="0/300" styleClass="moments-counter"/>
+                        <Button fx:id="postMomentBtn" text="Post" onAction="#onPostMoment" styleClass="send-btn"/>
+                    </HBox>
+                    <HBox fx:id="momentImagePreviewRow" spacing="8" alignment="CENTER_LEFT" visible="false" managed="false">
+                        <ImageView fx:id="momentImagePreview" fitWidth="72" fitHeight="72" preserveRatio="true" smooth="true" styleClass="moments-preview"/>
+                        <Button fx:id="removeMomentImageBtn" text="Remove" onAction="#onRemoveMomentImage" styleClass="moments-remove-btn"/>
+                    </HBox>
+                </VBox>
+            </HBox>
+        </VBox>
+
+        <ScrollPane fx:id="momentsScrollPane" fitToWidth="true" styleClass="moments-scroll" VBox.vgrow="ALWAYS">
+            <content>
+                <VBox fx:id="momentsFeed" spacing="14" styleClass="moments-feed"/>
+            </content>
+        </ScrollPane>
+    </VBox>
+
+    <StackPane fx:id="momentsDetailOverlay" visible="false" managed="false" styleClass="moments-detail-overlay" alignment="CENTER">
+        <BorderPane styleClass="moments-detail-pane" maxWidth="960" maxHeight="700">
+            <top>
+                <HBox spacing="10" alignment="CENTER_LEFT" styleClass="moments-detail-header">
+                    <Button onAction="#onCloseMomentDetail" styleClass="image-preview-back">
+                        <graphic>
+                            <FontIcon iconLiteral="mdi2c-chevron-left" styleClass="image-preview-back-icon"/>
+                        </graphic>
+                    </Button>
+                    <Label text="Moment" styleClass="moments-detail-title"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                </HBox>
+            </top>
+            <center>
+                <ScrollPane fitToWidth="true" styleClass="moments-detail-scroll">
+                    <content>
+                        <VBox fx:id="momentsDetailContent" spacing="12" styleClass="moments-detail-content"/>
+                    </content>
+                </ScrollPane>
+            </center>
+        </BorderPane>
+    </StackPane>
+</StackPane>

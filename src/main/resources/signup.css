@@ -1,0 +1,13 @@
+@import "login.css";
+
+.headline {
+    -fx-font-size: 46px;
+}
+
+.primary-btn {
+    -fx-padding: 12 24 12 24;
+}
+
+.right {
+    -fx-background-color: transparent;
+}

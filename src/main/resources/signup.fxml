@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<ScrollPane
+        fx:id="root"
+        xmlns="http://javafx.com/javafx/17"
+        xmlns:fx="http://javafx.com/fxml"
+        fx:controller="com.lanmessenger.SignUpController"
+        fitToWidth="true"
+        fitToHeight="true"
+        hbarPolicy="NEVER"
+        vbarPolicy="AS_NEEDED"
+        pannable="true"
+        onMousePressed="#onBackgroundClick"
+        styleClass="login-root signup-page">
+
+    <BorderPane fx:id="contentRoot">
+
+        <top>
+            <HBox styleClass="topbar signup-topbar" alignment="CENTER_LEFT">
+                <padding>
+                    <Insets top="18" right="32" bottom="10" left="32"/>
+                </padding>
+
+                <ImageView fx:id="logoImage"
+                           fitHeight="80"
+                           preserveRatio="true"/>
+
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <HBox spacing="18" alignment="CENTER_RIGHT">
+                    <Hyperlink text="Features"
+                               onAction="#onOpenFeatures"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="Privacy and safety"
+                               onAction="#onOpenPrivacySafety"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="For developers"
+                               onAction="#onOpenDevelopers"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                    <Hyperlink text="Help Centre"
+                               onAction="#onOpenHelpCenter"
+                               styleClass="toplink"
+                               focusTraversable="false"/>
+                </HBox>
+
+            </HBox>
+        </top>
+
+        <center>
+            <HBox styleClass="content signup-content" alignment="CENTER" spacing="40">
+                <padding>
+                    <Insets top="10" right="32" bottom="32" left="32"/>
+                </padding>
+
+                <VBox styleClass="left signup-left" spacing="16" alignment="TOP_LEFT" maxWidth="430">
+
+                    <Text text="Create&#10;your account"
+                          styleClass="headline"
+                          lineSpacing="-8"/>
+
+                    <Label wrapText="true"
+                           text="Join the conversation and be part of a community built on shared joy and reliable communication"
+                           styleClass="subtext"/>
+
+                    <VBox spacing="10" styleClass="form signup-form">
+                        <TextField fx:id="nameField" promptText="Full name"/>
+
+                        <TextField fx:id="emailField" promptText="Email address"/>
+
+                        <PasswordField fx:id="passwordField" promptText="Password (min 6 chars)"/>
+
+                        <PasswordField fx:id="confirmPasswordField" promptText="Confirm password"/>
+
+                        <VBox spacing="4" alignment="CENTER_LEFT" styleClass="actions">
+                            <Button fx:id="createBtn"
+                                    text="Create Account"
+                                    onAction="#onCreateAccount"
+                                    styleClass="primary-btn"/>
+
+                            <HBox alignment="CENTER_LEFT" spacing="2" styleClass="signup-row">
+                                <Label text="Already have an account?" styleClass="muted"/>
+                                <Hyperlink text="Log in"
+                                           onAction="#onBackToLogin"
+                                           styleClass="link"/>
+                            </HBox>
+
+                        </VBox>
+
+                        <Label fx:id="statusLabel"
+                               text=""
+                               styleClass="status"/>
+                    </VBox>
+
+                </VBox>
+
+                <StackPane styleClass="right signup-right" maxWidth="560" prefWidth="560">
+                    <ImageView fx:id="happyImage"
+                                styleClass="visual-illustration"
+                                preserveRatio="true"
+                                smooth="true"
+                                cache="true"
+                                fitWidth="320"/>
+                </StackPane>
+
+            </HBox>
+        </center>
+
+    </BorderPane>
+</ScrollPane>

@@ -1,0 +1,9 @@
+# Copy this file to config.properties and fill in your real values.
+# config.properties is in .gitignore and must NEVER be committed.
+
+mongodb.connection_string=mongodb://USERNAME:PASSWORD@host1:27017,host2:27017,host3:27017/?ssl=true&replicaSet=...&authSource=admin&appName=yourapp
+mongodb.database_name=LanMessengerDB
+
+firebase.api_key=YOUR_FIREBASE_API_KEY
+
+imgbb.api_key=YOUR_IMGBB_API_KEY
