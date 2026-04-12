@@ -1,6 +1,4 @@
 # 💬 Tuoxido — Modern LAN Messenger
-
-> A full-featured desktop messaging app built with JavaFX, MongoDB Atlas, and Firebase Auth.  
 > Real-time chat, video/audio calls, moments, friend system — all in one sleek UI.
 
 ---
