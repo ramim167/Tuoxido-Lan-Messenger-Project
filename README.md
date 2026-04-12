@@ -92,7 +92,7 @@ Tuoxido/
 
 ## 👨‍💻 Developer
 
-Built by **Nafis Mohtasim** — 2026
+Built by **Nafis Mohtasim Ramim & Shahriar Rahman Shanto** — 2026
 
 ---
 
