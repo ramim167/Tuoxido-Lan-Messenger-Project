@@ -22,6 +22,33 @@ public final class ImgBbService {
         return uploadImage(data, null);
     }
 
+    public static String toDisplayableUrl(String rawUrl) {
+        if (rawUrl == null) return null;
+        String trimmed = rawUrl.trim();
+        if (trimmed.isEmpty()) return null;
+        if (trimmed.startsWith("https://images.weserv.nl/")) {
+            return trimmed;
+        }
+
+        try {
+            URI uri = URI.create(trimmed);
+            String host = uri.getHost();
+            if (host != null && host.equalsIgnoreCase("i.ibb.co")) {
+                StringBuilder source = new StringBuilder(host);
+                if (uri.getRawPath() != null) {
+                    source.append(uri.getRawPath());
+                }
+                if (uri.getRawQuery() != null && !uri.getRawQuery().isBlank()) {
+                    source.append('?').append(uri.getRawQuery());
+                }
+                return "https://images.weserv.nl/?url=" + URLEncoder.encode(source.toString(), StandardCharsets.UTF_8);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return trimmed;
+    }
+
     public static UploadResult uploadImage(byte[] data, Integer expirationSeconds) throws Exception {
         if (data == null || data.length == 0) {
             throw new IllegalArgumentException("Image data is empty.");
@@ -49,11 +76,16 @@ public final class ImgBbService {
         }
 
         JsonObject payload = root.getAsJsonObject("data");
-        if (payload == null || !payload.has("url")) {
+        if (payload == null || (!payload.has("url") && !payload.has("display_url"))) {
             throw new IllegalStateException("ImgBB did not return an image URL.");
         }
 
-        String imageUrl = payload.get("url").getAsString();
+        String imageUrl;
+        if (payload.has("display_url") && !payload.get("display_url").isJsonNull()) {
+            imageUrl = payload.get("display_url").getAsString();
+        } else {
+            imageUrl = payload.get("url").getAsString();
+        }
         String deleteUrl = payload.has("delete_url") ? payload.get("delete_url").getAsString() : null;
         return new UploadResult(imageUrl, deleteUrl);
     }

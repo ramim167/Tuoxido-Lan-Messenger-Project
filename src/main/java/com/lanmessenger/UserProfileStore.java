@@ -37,7 +37,8 @@ public final class UserProfileStore {
             try { birthdate = LocalDate.parse(bd); } catch (Exception ignored) {}
         }
         String profilePic = PREFS.get(k(localId, "profilePic"), "default_avatar.png");
-        return new UserProfile(localId, name, email, username, birthdate,profilePic);
+        String bio = PREFS.get(k(localId, "bio"), "");
+        return new UserProfile(localId, name, email, username, birthdate, profilePic, bio);
     }
 
     public static void updateName(String localId, String name) {
@@ -58,6 +59,11 @@ public final class UserProfileStore {
     public static void updateProfilePic(String localId, String profilePic) {
         if (localId == null) return;
         PREFS.put(k(localId, "profilePic"), profilePic == null ? "default_avatar.png" : profilePic);
+    }
+
+    public static void updateBio(String localId, String bio) {
+        if (localId == null) return;
+        PREFS.put(k(localId, "bio"), bio == null ? "" : bio.trim());
     }
     private static String generateUsername(String localId) {
         String base = localId.replaceAll("[^A-Za-z0-9]", "");

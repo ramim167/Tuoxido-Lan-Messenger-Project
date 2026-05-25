@@ -34,6 +34,8 @@ public class FriendsController {
     private Thread liveUpdateThread;
     private int lastReqCount = -1;
     private int lastFriendCount = -1;
+    private static final java.util.Map<String, javafx.scene.image.Image> AVATAR_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private javafx.scene.image.Image defaultAvatar;
     @FXML
     public void initialize() {
         searchUserField.sceneProperty().addListener((obs, oldScene, newScene) -> {
@@ -63,6 +65,63 @@ public class FriendsController {
         Label emptySearchLabel = new Label("Search by name or @username...");
         emptySearchLabel.setStyle("-fx-text-fill: -lm-muted; -fx-font-size: 12px; -fx-opacity: 0.58; -fx-padding: 4 2 4 2;");
         searchResultsBox.getChildren().add(emptySearchLabel);
+    }
+
+    private javafx.scene.image.Image getDefaultAvatar() {
+        if (defaultAvatar != null) {
+            return defaultAvatar;
+        }
+        try {
+            defaultAvatar = new javafx.scene.image.Image(getClass().getResourceAsStream("/assets/default_avatar.png"));
+        } catch (Exception ignored) {
+            defaultAvatar = null;
+        }
+        return defaultAvatar;
+    }
+
+    private javafx.scene.image.Image getCachedAvatarImage(String profilePicUrl) {
+        String displayableUrl = ImgBbService.toDisplayableUrl(profilePicUrl);
+        if (displayableUrl == null) {
+            return null;
+        }
+        String key = displayableUrl.trim();
+        if (key.isEmpty() || !key.startsWith("http")) {
+            return null;
+        }
+
+        return AVATAR_CACHE.compute(key, (k, existing) -> {
+            if (existing != null && !existing.isError()) {
+                return existing;
+            }
+            javafx.scene.image.Image fresh = new javafx.scene.image.Image(k, true);
+            fresh.errorProperty().addListener((obs, oldVal, hasError) -> {
+                if (Boolean.TRUE.equals(hasError)) {
+                    AVATAR_CACHE.remove(k, fresh);
+                }
+            });
+            return fresh;
+        });
+    }
+
+    private void setAvatarImage(javafx.scene.image.ImageView imageView, String profilePicUrl) {
+        javafx.scene.image.Image fallback = getDefaultAvatar();
+        if (fallback != null) {
+            imageView.setImage(fallback);
+        }
+        javafx.scene.image.Image remote = getCachedAvatarImage(profilePicUrl);
+        if (remote == null) {
+            return;
+        }
+        imageView.setImage(remote);
+        if (remote.isError() && fallback != null) {
+            imageView.setImage(fallback);
+        } else if (fallback != null) {
+            remote.errorProperty().addListener((obs, oldVal, hasError) -> {
+                if (Boolean.TRUE.equals(hasError)) {
+                    Platform.runLater(() -> imageView.setImage(fallback));
+                }
+            });
+        }
     }
 
     @FXML
@@ -123,7 +182,6 @@ public class FriendsController {
             for (org.bson.Document userDoc : users) {
                 String dbName = userDoc.getString("name");
                 String dbUsername = userDoc.getString("username");
-                if (UserService.isBlocked(Session.getProfile().username, dbUsername)) continue;
                 String profilePicUrl = userDoc.getString("profilePic");
 
                 String friendshipStatus = String.valueOf(userDoc.get("friendshipStatus"));
@@ -138,13 +196,7 @@ public class FriendsController {
                 javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(22.5, 22.5, 22.5);
                 imgView.setClip(clip);
 
-                if (profilePicUrl != null && profilePicUrl.startsWith("http")) {
-                    imgView.setImage(new javafx.scene.image.Image(profilePicUrl, true));
-                } else {
-                    try {
-                        imgView.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
-                    } catch (Exception ex) {}
-                }
+                setAvatarImage(imgView, profilePicUrl);
 
                 javafx.scene.layout.VBox nameBox = new javafx.scene.layout.VBox(2);
                 Label nameLabel = new Label(dbName);
@@ -218,7 +270,7 @@ public class FriendsController {
         myFriendsBox.getChildren().clear();
         javafx.concurrent.Task<java.util.List<org.bson.Document>> task = new javafx.concurrent.Task<>() {
             @Override protected java.util.List<org.bson.Document> call() {
-                return UserService.getMyFriendsList(Session.getProfile().username);
+                return UserService.getMyFriendsListOptimized(Session.getProfile().username);
             }
         };
 
@@ -239,6 +291,7 @@ public class FriendsController {
                 javafx.scene.image.ImageView img = new javafx.scene.image.ImageView();
                 img.setFitWidth(35); img.setFitHeight(35);
                 img.setClip(new javafx.scene.shape.Circle(17.5, 17.5, 17.5));
+                setAvatarImage(img, fPic);
                 img.setCursor(javafx.scene.Cursor.HAND);
                 img.setOnMouseClicked(ev -> viewUserProfile(fUser));
 
@@ -288,11 +341,23 @@ public class FriendsController {
         loading.setStyle("-fx-text-fill: -lm-muted; -fx-font-size: 12px; -fx-opacity: 0.64; -fx-padding: 4 2 4 2;");
         requestListBox.getChildren().add(loading);
 
-        javafx.concurrent.Task<java.util.List<org.bson.Document>> task = new javafx.concurrent.Task<>() {
-            @Override protected java.util.List<org.bson.Document> call() {
+        javafx.concurrent.Task<java.util.Map.Entry<java.util.List<org.bson.Document>, java.util.Map<String, org.bson.Document>>> task = new javafx.concurrent.Task<>() {
+            @Override protected java.util.Map.Entry<java.util.List<org.bson.Document>, java.util.Map<String, org.bson.Document>> call() {
                 UserProfile me = Session.getProfile();
-                if (me == null) return new java.util.ArrayList<>();
-                return UserService.getPendingRequests(me.username);
+                if (me == null) {
+                    return new java.util.AbstractMap.SimpleEntry<>(new java.util.ArrayList<>(), java.util.Map.of());
+                }
+
+                java.util.List<org.bson.Document> reqs = UserService.getPendingRequests(me.username);
+                java.util.LinkedHashSet<String> senderUsernames = new java.util.LinkedHashSet<>();
+                for (org.bson.Document req : reqs) {
+                    String senderUsername = req.getString("sender");
+                    if (senderUsername != null && !senderUsername.isBlank()) {
+                        senderUsernames.add(senderUsername);
+                    }
+                }
+                java.util.Map<String, org.bson.Document> senderDocs = UserService.getUsersByUsernames(senderUsernames);
+                return new java.util.AbstractMap.SimpleEntry<>(reqs, senderDocs);
             }
         };
 
@@ -301,7 +366,9 @@ public class FriendsController {
                 return;
             }
             requestListBox.getChildren().clear();
-            java.util.List<org.bson.Document> reqs = task.getValue();
+            java.util.Map.Entry<java.util.List<org.bson.Document>, java.util.Map<String, org.bson.Document>> payload = task.getValue();
+            java.util.List<org.bson.Document> reqs = payload == null ? java.util.List.of() : payload.getKey();
+            java.util.Map<String, org.bson.Document> senderDocs = payload == null ? java.util.Map.of() : payload.getValue();
 
             if (reqs.isEmpty()) {
                 Label emptyReqLabel = new Label("No pending friend requests.");
@@ -312,7 +379,7 @@ public class FriendsController {
 
             for (org.bson.Document req : reqs) {
                 String senderUsername = req.getString("sender");
-                org.bson.Document senderDoc = UserService.getUserByUsername(senderUsername);
+                org.bson.Document senderDoc = senderDocs.get(senderUsername);
                 if (senderDoc == null) continue;
 
                 String dbName = senderDoc.getString("name");
@@ -327,11 +394,7 @@ public class FriendsController {
                 imgView.setFitWidth(40); imgView.setFitHeight(40);
                 javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(20, 20, 20);
                 imgView.setClip(clip);
-                if (profilePicUrl != null && profilePicUrl.startsWith("http")) {
-                    imgView.setImage(new javafx.scene.image.Image(profilePicUrl, true));
-                } else {
-                    try { imgView.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream("/assets/default_avatar.png"))); } catch (Exception ex) {}
-                }
+                setAvatarImage(imgView, profilePicUrl);
 
                 javafx.scene.layout.VBox nameBox = new javafx.scene.layout.VBox(2);
                 Label nameLabel = new Label(dbName);
@@ -417,15 +480,20 @@ public class FriendsController {
         if (!isUiAvailable()) {
             return;
         }
+
         keepListening = true;
+
         liveUpdateThread = new Thread(() -> {
             while (keepListening) {
                 try {
                     UserProfile me = Session.getProfile();
-                    if (me != null) {
 
-                        java.util.List<org.bson.Document> reqs = UserService.getPendingRequests(me.username);
-                        java.util.List<org.bson.Document> friends = UserService.getMyFriendsList(me.username);
+                    if (me != null) {
+                        java.util.List<org.bson.Document> reqs =
+                                UserService.getPendingRequests(me.username);
+
+                        java.util.List<org.bson.Document> friends =
+                                UserService.getMyFriendsListOptimized(me.username);
 
                         int currentReqCount = reqs.size();
                         int currentFriendCount = friends.size();
@@ -438,6 +506,7 @@ public class FriendsController {
                                 if (!isUiAvailable()) {
                                     return;
                                 }
+
                                 loadPendingRequests();
                                 loadMyFriends();
 
@@ -448,23 +517,55 @@ public class FriendsController {
                             });
                         }
                     }
+
+                    if (!keepListening) {
+                        break;
+                    }
+
                     Thread.sleep(1500);
+
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     break;
+
                 } catch (Exception e) {
+                    if (!keepListening || !active || isExpectedStopException(e)) {
+                        break;
+                    }
+
                     e.printStackTrace();
                 }
             }
         }, "friends-live-update");
+
         liveUpdateThread.setDaemon(true);
         liveUpdateThread.start();
     }
 
     private void stopLiveUpdate() {
         keepListening = false;
-        if (liveUpdateThread != null) {
+
+        if (liveUpdateThread != null && liveUpdateThread.isAlive()) {
             liveUpdateThread.interrupt();
         }
+    }
+
+    private boolean isExpectedStopException(Throwable t) {
+        while (t != null) {
+            if (t instanceof InterruptedException || t instanceof com.mongodb.MongoInterruptedException) {
+                return true;
+            }
+
+            for (Throwable suppressed : t.getSuppressed()) {
+                if (isExpectedStopException(suppressed)) {
+                    return true;
+                }
+            }
+
+            t = t.getCause();
+        }
+
+        return false;
     }
 
     private boolean isUiAvailable() {

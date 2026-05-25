@@ -18,10 +18,17 @@
             <StackPane styleClass="profile-avatar-ring">
                 <ImageView fx:id="profileImageView" fitWidth="120" fitHeight="120"/>
             </StackPane>
-            <VBox spacing="6">
+            <VBox spacing="8" alignment="CENTER_LEFT">
                 <Label fx:id="nameLabel" text="Loading..." styleClass="profile-page-title"/>
                 <Label fx:id="usernameLabel" text="@loading" styleClass="muted"/>
                 <Label fx:id="dobLabel" text="Not provided" styleClass="profile-status"/>
+                <Label fx:id="bioLabel" text="" wrapText="true" styleClass="profile-bio-view"/>
+                <Button fx:id="friendRequestButton"
+                        text="Add Friend"
+                        onAction="#onSendFriendRequest"
+                        styleClass="profile-friend-btn"
+                        visible="false"
+                        managed="false"/>
             </VBox>
         </HBox>
 

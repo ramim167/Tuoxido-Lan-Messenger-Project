@@ -67,6 +67,17 @@
                     </graphic>
                 </Button>
 
+                <Button fx:id="messageRequestBtn" styleClass="nav-btn" onAction="#onMessageRequestsClick">
+                    <graphic>
+                        <StackPane alignment="CENTER_LEFT" styleClass="nav-wrap">
+                            <Region styleClass="nav-bg" mouseTransparent="true"/>
+                            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="nav-row">
+                                <FontIcon iconLiteral="mdi2m-message-alert-outline" styleClass="nav-icon"/>
+                                <Label text="Message Requests" styleClass="nav-text"/>
+                            </HBox>
+                        </StackPane>
+                    </graphic>
+                </Button>
                 <Region VBox.vgrow="ALWAYS"/>
 
                 <Button fx:id="profileBtn" styleClass="nav-btn" onAction="#onOpenProfile">

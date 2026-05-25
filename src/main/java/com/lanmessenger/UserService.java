@@ -12,10 +12,18 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Random;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.regex.Pattern;
 
 public class UserService {
+    private static final int MAX_BIO_WORDS = 150;
 
     private static MongoCollection<Document> getUsersCollection() {
         MongoDatabase database = MongoDatabaseService.getDatabase();
@@ -82,6 +90,7 @@ public class UserService {
                     .append("password", password)
                     .append("birthday", defaultBirthday)
                     .append("profilePic", "default_avatar.png")
+                    .append("bio", "")
                     .append("status", "offline");
 
             usersCollection.insertOne(newUser);
@@ -95,9 +104,10 @@ public class UserService {
         }
     }
 
-    public static boolean updateProfileInfo(String email, String username, String name, String birthdate, String profilePic) {
+    public static boolean updateProfileInfo(String email, String username, String name, String birthdate, String profilePic, String bio) {
         try {
             MongoCollection<org.bson.Document> users = getUsersCollection();
+            String normalizedBio = normalizeBio(bio);
 
             com.mongodb.client.result.UpdateResult result = users.updateOne(
                     com.mongodb.client.model.Filters.eq("email", email),
@@ -106,13 +116,26 @@ public class UserService {
                             com.mongodb.client.model.Updates.set("name", name),
                             com.mongodb.client.model.Updates.set("birthdate", birthdate),
                             com.mongodb.client.model.Updates.set("birthday", birthdate),
-                            com.mongodb.client.model.Updates.set("profilePic", profilePic)
+                            com.mongodb.client.model.Updates.set("profilePic", profilePic),
+                            com.mongodb.client.model.Updates.set("bio", normalizedBio)
                     )
             );
             return result.getMatchedCount() > 0;
         } catch (Exception e) {
             System.err.println("❌ Failed to update profile: " + e.getMessage());
             return false;
+        }
+    }
+
+    public static boolean updateProfileInfo(String email, String username, String name, String birthdate, String profilePic) {
+        try {
+            Document oldUser = getUserByEmail(email);
+            String existingBio = oldUser == null ? "" : oldUser.getString("bio");
+
+            return updateProfileInfo(email, username, name, birthdate, profilePic, existingBio);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to preserve bio: " + e.getMessage());
+            return updateProfileInfo(email, username, name, birthdate, profilePic, "");
         }
     }
 
@@ -179,6 +202,37 @@ public class UserService {
         }
     }
 
+    public static Map<String, Document> getUsersByUsernames(Collection<String> usernames) {
+        Map<String, Document> usersByUsername = new HashMap<>();
+        if (usernames == null || usernames.isEmpty()) {
+            return usersByUsername;
+        }
+
+        try {
+            LinkedHashSet<String> uniqueUsernames = new LinkedHashSet<>();
+            for (String username : usernames) {
+                if (username != null && !username.isBlank()) {
+                    uniqueUsernames.add(username);
+                }
+            }
+            if (uniqueUsernames.isEmpty()) {
+                return usersByUsername;
+            }
+
+            List<Document> docs = new ArrayList<>();
+            getUsersCollection().find(Filters.in("username", uniqueUsernames)).into(docs);
+            for (Document doc : docs) {
+                String username = doc.getString("username");
+                if (username != null && !username.isBlank()) {
+                    usersByUsername.put(username, doc);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error fetching users: " + e.getMessage());
+        }
+        return usersByUsername;
+    }
+
     public static Document getUserByEmail(String email) {
         try {
             return getUsersCollection().find(Filters.eq("email", email)).first();
@@ -204,6 +258,7 @@ public class UserService {
             String name = firstNonBlank(user.getString("name"), cachedProfile == null ? "" : cachedProfile.name);
             String username = firstNonBlank(user.getString("username"), cachedProfile == null ? "" : cachedProfile.username);
             String profilePic = firstNonBlank(user.getString("profilePic"), cachedProfile == null ? "default_avatar.png" : cachedProfile.profilePic);
+            String bio = firstNonBlank(user.getString("bio"), cachedProfile == null ? "" : cachedProfile.bio);
 
             LocalDate birthdate = parseBirthdate(
                     firstNonBlank(user.getString("birthdate"), user.getString("birthday"))
@@ -217,9 +272,10 @@ public class UserService {
                 UserProfileStore.updateUsername(localId, username);
                 UserProfileStore.updateBirthdate(localId, birthdate);
                 UserProfileStore.updateProfilePic(localId, profilePic);
+                UserProfileStore.updateBio(localId, bio);
             }
 
-            return new UserProfile(localId, name, email, username, birthdate, profilePic);
+            return new UserProfile(localId, name, email, username, birthdate, profilePic, bio);
         } catch (Exception e) {
             System.err.println("Error loading profile: " + e.getMessage());
             return cachedProfile;
@@ -241,6 +297,7 @@ public class UserService {
             String name = firstNonBlank(user.getString("name"), cachedProfile == null ? "" : cachedProfile.name);
             String username = firstNonBlank(user.getString("username"), cachedProfile == null ? "" : cachedProfile.username);
             String profilePic = firstNonBlank(user.getString("profilePic"), cachedProfile == null ? "default_avatar.png" : cachedProfile.profilePic);
+            String bio = firstNonBlank(user.getString("bio"), cachedProfile == null ? "" : cachedProfile.bio);
 
             LocalDate birthdate = parseBirthdate(
                     firstNonBlank(user.getString("birthdate"), user.getString("birthday"))
@@ -254,9 +311,10 @@ public class UserService {
                 UserProfileStore.updateUsername(localId, username);
                 UserProfileStore.updateBirthdate(localId, birthdate);
                 UserProfileStore.updateProfilePic(localId, profilePic);
+                UserProfileStore.updateBio(localId, bio);
             }
 
-            return new UserProfile(localId, name, email, username, birthdate, profilePic);
+            return new UserProfile(localId, name, email, username, birthdate, profilePic, bio);
         } catch (Exception e) {
             System.err.println("Error loading required profile: " + e.getMessage());
             return null;
@@ -299,6 +357,19 @@ public class UserService {
             return primary;
         }
         return fallback == null ? "" : fallback;
+    }
+
+    private static String normalizeBio(String bio) {
+        if (bio == null || bio.isBlank()) {
+            return "";
+        }
+        String[] words = bio.trim().split("\\s+");
+        int limit = Math.min(words.length, MAX_BIO_WORDS);
+        StringJoiner joiner = new StringJoiner(" ");
+        for (int i = 0; i < limit; i++) {
+            joiner.add(words[i]);
+        }
+        return joiner.toString();
     }
 
     private static LocalDate parseBirthdate(String value) {
@@ -344,6 +415,22 @@ public class UserService {
         } catch (Exception e) {
             System.err.println("❌ Error sending friend request: " + e.getMessage());
             return false;
+        }
+    }
+
+    public static Document getRelationshipRecord(String firstUsername, String secondUsername) {
+        if (firstUsername == null || secondUsername == null
+                || firstUsername.isBlank() || secondUsername.isBlank()) {
+            return null;
+        }
+        try {
+            return getFriendRequestsCollection()
+                    .find(buildRelationshipFilter(firstUsername, secondUsername))
+                    .sort(new Document("timestamp", -1))
+                    .first();
+        } catch (Exception e) {
+            System.err.println("Error fetching relationship: " + e.getMessage());
+            return null;
         }
     }
 
@@ -409,6 +496,75 @@ public class UserService {
             });
         } catch (Exception e) {
             System.err.println("❌ Error fetching friends: " + e.getMessage());
+        }
+        return friends;
+    }
+
+    public static java.util.List<org.bson.Document> getMyFriendsListOptimized(String myUsername) {
+        java.util.List<org.bson.Document> friends = new java.util.ArrayList<>();
+        try {
+            com.mongodb.client.MongoCollection<org.bson.Document> reqCol = getFriendRequestsCollection();
+            com.mongodb.client.MongoCollection<org.bson.Document> blockCol = getBlockedUsersCollection();
+
+            org.bson.conversions.Bson filter = com.mongodb.client.model.Filters.and(
+                    com.mongodb.client.model.Filters.eq("status", "accepted"),
+                    com.mongodb.client.model.Filters.or(
+                            com.mongodb.client.model.Filters.eq("sender", myUsername),
+                            com.mongodb.client.model.Filters.eq("receiver", myUsername)
+                    )
+            );
+
+            List<org.bson.Document> relationships = new java.util.ArrayList<>();
+            reqCol.find(filter).into(relationships);
+
+            LinkedHashSet<String> candidateUsernames = new LinkedHashSet<>();
+            for (org.bson.Document relation : relationships) {
+                String sender = relation.getString("sender");
+                String receiver = relation.getString("receiver");
+                String friendUsername = myUsername.equals(sender) ? receiver : sender;
+                if (friendUsername != null && !friendUsername.isBlank()) {
+                    candidateUsernames.add(friendUsername);
+                }
+            }
+
+            if (candidateUsernames.isEmpty()) {
+                return friends;
+            }
+
+            Set<String> blockedUsernames = new HashSet<>();
+            org.bson.conversions.Bson blockedFilter = com.mongodb.client.model.Filters.or(
+                    com.mongodb.client.model.Filters.and(
+                            com.mongodb.client.model.Filters.eq("blocker", myUsername),
+                            com.mongodb.client.model.Filters.in("blocked", candidateUsernames)
+                    ),
+                    com.mongodb.client.model.Filters.and(
+                            com.mongodb.client.model.Filters.eq("blocked", myUsername),
+                            com.mongodb.client.model.Filters.in("blocker", candidateUsernames)
+                    )
+            );
+
+            for (org.bson.Document blockedDoc : blockCol.find(blockedFilter)) {
+                String blocker = blockedDoc.getString("blocker");
+                String blocked = blockedDoc.getString("blocked");
+                if (myUsername.equals(blocker) && blocked != null) {
+                    blockedUsernames.add(blocked);
+                } else if (myUsername.equals(blocked) && blocker != null) {
+                    blockedUsernames.add(blocker);
+                }
+            }
+
+            Map<String, org.bson.Document> usersByUsername = getUsersByUsernames(candidateUsernames);
+            for (String friendUsername : candidateUsernames) {
+                if (blockedUsernames.contains(friendUsername)) {
+                    continue;
+                }
+                org.bson.Document userDoc = usersByUsername.get(friendUsername);
+                if (userDoc != null) {
+                    friends.add(userDoc);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("âŒ Error fetching friends: " + e.getMessage());
         }
         return friends;
     }

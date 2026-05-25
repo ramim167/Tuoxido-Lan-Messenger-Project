@@ -21,14 +21,18 @@ import java.io.File;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.Callable;
 
 public class ViewProfileController {
+    private static final int MAX_BIO_WORDS = 150;
 
     @FXML private ImageView profileImageView;
     @FXML private Label nameLabel;
     @FXML private Label usernameLabel;
     @FXML private Label dobLabel;
+    @FXML private Label bioLabel;
+    @FXML private Button friendRequestButton;
     @FXML private VBox profileMomentsBox;
 
     public static String targetUsername = null;
@@ -41,7 +45,47 @@ public class ViewProfileController {
     public void initialize() {
         applyRoundProfileImage();
         loadProfileHeader();
+        loadFriendRequestState();
         loadProfileMoments();
+    }
+
+    @FXML
+    public void onSendFriendRequest(ActionEvent event) {
+        UserProfile me = Session.getProfile();
+        if (friendRequestButton == null || me == null || me.username == null || targetUsername == null) {
+            return;
+        }
+        if (me.username.equals(targetUsername)) {
+            hideFriendRequestButton();
+            return;
+        }
+        String receiverUsername = targetUsername;
+
+        setFriendRequestButtonState("Sending...", true, FriendButtonStyle.MUTED);
+
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return UserService.sendFriendRequest(me.username, receiverUsername);
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            if (Boolean.TRUE.equals(task.getValue())) {
+                setFriendRequestButtonState("Request Sent", true, FriendButtonStyle.MUTED);
+            } else {
+                loadFriendRequestState();
+                ThemedDialogs.showAlert(getOwnerWindow(), "Friend Request", "Could not send friend request.", true);
+            }
+        });
+        task.setOnFailed(e -> {
+            loadFriendRequestState();
+            ThemedDialogs.showAlert(getOwnerWindow(), "Friend Request", "Could not send friend request.", true);
+        });
+
+        Thread thread = new Thread(task, "view-profile-send-friend-request");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     @FXML
@@ -66,11 +110,32 @@ public class ViewProfileController {
 
     private void loadProfileHeader() {
         if (targetUsername == null) {
+            Image fallback = loadDefaultAvatarImage();
+            if (fallback != null) {
+                profileImageView.setImage(fallback);
+            }
+            if (bioLabel != null) {
+                bioLabel.setText("");
+                bioLabel.setManaged(false);
+                bioLabel.setVisible(false);
+            }
             return;
         }
 
         Document userDoc = UserService.getUserByUsername(targetUsername);
         if (userDoc == null) {
+            nameLabel.setText(targetUsername);
+            usernameLabel.setText("@" + targetUsername);
+            dobLabel.setText("Not provided");
+            if (bioLabel != null) {
+                bioLabel.setText("");
+                bioLabel.setManaged(false);
+                bioLabel.setVisible(false);
+            }
+            Image fallback = loadDefaultAvatarImage();
+            if (fallback != null) {
+                profileImageView.setImage(fallback);
+            }
             return;
         }
 
@@ -79,17 +144,158 @@ public class ViewProfileController {
 
         String dob = userDoc.getString("birthdate");
         dobLabel.setText((dob != null && !dob.isEmpty()) ? dob : "Not provided");
+        String bio = normalizeBio(userDoc.getString("bio"));
+
+        if (bioLabel != null) {
+            boolean hasBio = bio != null && !bio.isBlank();
+
+            bioLabel.setText(hasBio ? bio : "No bio added yet.");
+            bioLabel.setManaged(true);
+            bioLabel.setVisible(true);
+        }
 
         String pic = userDoc.getString("profilePic");
+        if (pic != null) {
+            pic = pic.trim();
+        }
         applyRoundProfileImage();
-        if (pic != null && pic.startsWith("http")) {
-            profileImageView.setImage(new Image(pic, true));
+        Image fallback = loadDefaultAvatarImage();
+        String displayableUrl = ImgBbService.toDisplayableUrl(pic);
+        if (displayableUrl != null && displayableUrl.startsWith("http")) {
+            try {
+                Image remote = new Image(displayableUrl, true);
+                remote.errorProperty().addListener((obs, oldVal, hasError) -> {
+                    if (Boolean.TRUE.equals(hasError) && fallback != null) {
+                        profileImageView.setImage(fallback);
+                    }
+                });
+                profileImageView.setImage(remote);
+                if (remote.isError() && fallback != null) {
+                    profileImageView.setImage(fallback);
+                }
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (fallback != null) {
+            profileImageView.setImage(fallback);
+        }
+    }
+
+    private void loadFriendRequestState() {
+        if (friendRequestButton == null) {
             return;
         }
 
+        UserProfile me = Session.getProfile();
+        if (me == null || me.username == null || targetUsername == null || me.username.equals(targetUsername)) {
+            hideFriendRequestButton();
+            return;
+        }
+
+        showFriendRequestButton();
+        setFriendRequestButtonState("Loading...", true, FriendButtonStyle.MUTED);
+
+        String myUsername = me.username;
+        String viewedUsername = targetUsername;
+
+        Task<FriendRequestUiState> task = new Task<>() {
+            @Override
+            protected FriendRequestUiState call() {
+                if (UserService.isBlocked(myUsername, viewedUsername)) {
+                    return new FriendRequestUiState("Blocked", true, FriendButtonStyle.BLOCKED);
+                }
+
+                Document relationship = UserService.getRelationshipRecord(myUsername, viewedUsername);
+                if (relationship == null) {
+                    return new FriendRequestUiState("Add Friend", false, FriendButtonStyle.ACTIVE);
+                }
+
+                String status = relationship.getString("status");
+                if ("accepted".equalsIgnoreCase(status)) {
+                    return new FriendRequestUiState("Friends", true, FriendButtonStyle.MUTED);
+                }
+
+                if ("pending".equalsIgnoreCase(status)) {
+                    String sender = relationship.getString("sender");
+                    if (myUsername.equals(sender)) {
+                        return new FriendRequestUiState("Request Sent", true, FriendButtonStyle.MUTED);
+                    }
+                    return new FriendRequestUiState("Incoming Request", true, FriendButtonStyle.MUTED);
+                }
+
+                return new FriendRequestUiState("Add Friend", false, FriendButtonStyle.ACTIVE);
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            FriendRequestUiState state = task.getValue();
+            if (state == null) {
+                setFriendRequestButtonState("Add Friend", false, FriendButtonStyle.ACTIVE);
+                return;
+            }
+            setFriendRequestButtonState(state.text, state.disabled, state.style);
+        });
+        task.setOnFailed(e -> setFriendRequestButtonState("Add Friend", false, FriendButtonStyle.ACTIVE));
+
+        Thread thread = new Thread(task, "view-profile-friend-state");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void showFriendRequestButton() {
+        friendRequestButton.setVisible(true);
+        friendRequestButton.setManaged(true);
+    }
+
+    private void hideFriendRequestButton() {
+        if (friendRequestButton == null) {
+            return;
+        }
+        friendRequestButton.setVisible(false);
+        friendRequestButton.setManaged(false);
+    }
+
+    private void setFriendRequestButtonState(String text, boolean disabled, FriendButtonStyle style) {
+        if (friendRequestButton == null) {
+            return;
+        }
+
+        friendRequestButton.setText(text);
+        friendRequestButton.setDisable(disabled);
+        friendRequestButton.getStyleClass().removeAll("profile-friend-btn-muted", "profile-friend-btn-blocked");
+
+        if (style == FriendButtonStyle.MUTED) {
+            friendRequestButton.getStyleClass().add("profile-friend-btn-muted");
+        } else if (style == FriendButtonStyle.BLOCKED) {
+            friendRequestButton.getStyleClass().add("profile-friend-btn-blocked");
+        }
+    }
+
+    private static final class FriendRequestUiState {
+        private final String text;
+        private final boolean disabled;
+        private final FriendButtonStyle style;
+
+        private FriendRequestUiState(String text, boolean disabled, FriendButtonStyle style) {
+            this.text = text;
+            this.disabled = disabled;
+            this.style = style;
+        }
+    }
+
+    private enum FriendButtonStyle {
+        ACTIVE,
+        MUTED,
+        BLOCKED
+    }
+
+    private Image loadDefaultAvatarImage() {
         try {
-            profileImageView.setImage(new Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
+            return new Image(getClass().getResourceAsStream("/assets/default_avatar.png"));
         } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -112,7 +318,7 @@ public class ViewProfileController {
             if (me.username.equals(targetUsername)) {
                 canSee = true;
             } else {
-                List<Document> friends = UserService.getMyFriendsList(me.username);
+                List<Document> friends = UserService.getMyFriendsListOptimized(me.username);
                 for (Document doc : friends) {
                     if (targetUsername.equals(doc.getString("username"))) {
                         canSee = true;
@@ -189,7 +395,8 @@ public class ViewProfileController {
         }
 
         if (imageUrl != null && !imageUrl.isBlank()) {
-            ImageView imageView = new ImageView(new Image(imageUrl, true));
+            String displayable = ImgBbService.toDisplayableUrl(imageUrl);
+            ImageView imageView = new ImageView(new Image(displayable == null ? imageUrl : displayable, true));
             imageView.setPreserveRatio(true);
             imageView.setFitWidth(520);
             imageView.setSmooth(true);
@@ -246,7 +453,7 @@ public class ViewProfileController {
                 "Could not update the moment picture.",
                 () -> {
                     byte[] bytes = Files.readAllBytes(file.toPath());
-                    String imageUrl = ImgBbService.uploadImage(bytes).imageUrl;
+                    String imageUrl = ImgBbService.uploadImage(bytes, 7 * 24 * 60 * 60).imageUrl;
                     return MomentsService.updateMomentImage(momentId, imageUrl);
                 }
         );
@@ -323,5 +530,18 @@ public class ViewProfileController {
         if (hours < 24) return hours + "h";
         long days = hours / 24;
         return days + "d";
+    }
+
+    private String normalizeBio(String bio) {
+        if (bio == null || bio.isBlank()) {
+            return "";
+        }
+        String[] words = bio.trim().split("\\s+");
+        int limit = Math.min(words.length, MAX_BIO_WORDS);
+        StringJoiner joiner = new StringJoiner(" ");
+        for (int i = 0; i < limit; i++) {
+            joiner.add(words[i]);
+        }
+        return joiner.toString();
     }
 }

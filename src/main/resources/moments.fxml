@@ -89,7 +89,7 @@
                 </HBox>
             </top>
             <center>
-                <ScrollPane fitToWidth="true" styleClass="moments-detail-scroll">
+                <ScrollPane fx:id="momentsDetailScrollPane" fitToWidth="true" styleClass="moments-detail-scroll">
                     <content>
                         <VBox fx:id="momentsDetailContent" spacing="12" styleClass="moments-detail-content"/>
                     </content>

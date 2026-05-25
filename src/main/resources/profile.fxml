@@ -43,6 +43,11 @@
                 </VBox>
 
                 <VBox spacing="4" alignment="CENTER_LEFT">
+                    <Label text="Bio" styleClass="profile-label"/>
+                    <TextArea fx:id="bioField" wrapText="true" prefRowCount="3" styleClass="profile-bio-area"/>
+                </VBox>
+
+                <VBox spacing="4" alignment="CENTER_LEFT">
                     <Label fx:id="dobLabel" text="Birthdate" styleClass="profile-label"/>
                     <DatePicker fx:id="birthdatePicker" prefWidth="400"/>
                 </VBox>

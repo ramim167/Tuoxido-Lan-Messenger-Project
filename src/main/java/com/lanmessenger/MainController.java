@@ -30,10 +30,13 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.net.URI;
@@ -110,6 +113,9 @@ public class MainController {
     private Button archiveBtn;
 
     @FXML
+    private Button messageRequestBtn;
+
+    @FXML
     private VBox sidebar;
 
     @FXML
@@ -178,7 +184,6 @@ public class MainController {
     private Thread incomingCallThread;
     private Thread globalInboxThread;
     private volatile boolean keepListening = false;
-    private int displayedMessageCount = 0;
     private static final double DRAWER_W = 240;
 
     private static final double PILL_COLLAPSED_W = 44;
@@ -189,7 +194,7 @@ public class MainController {
     private static final Duration SECTION_ANIM_DUR = Duration.millis(180);
     private static final Duration SWITCH_ANIM_DUR = Duration.millis(140);
     private boolean showingArchived = false;
-
+    private boolean showingMessageRequests = false;
     private static final Duration COLLAPSE_DELAY = Duration.millis(120);
     private PauseTransition collapseDelay;
 
@@ -226,11 +231,29 @@ public class MainController {
     private static volatile boolean isCallAlertShowing = false;
     // Reopen the selected chat after returning from a secondary screen.
     public static String pendingOpenChatUsername = null;
-    private java.util.List<Document> lastHistory = new ArrayList<>();
+    private static final int CHAT_PAGE_SIZE = 35;
+    private static final int CHAT_CHANGES_BATCH_SIZE = 80;
+    private static final long CHAT_RETENTION_MILLIS = 7L * 24L * 60L * 60L * 1000L;
+    private static final String MESSAGE_REQUEST_HEADER_ITEM = "__MESSAGE_REQUEST_HEADER__";
+    private static final String MESSAGE_REQUEST_ITEM_FLAG = "request";
+    private static final double TOP_FETCH_THRESHOLD = 0.02;
+    private static final double BOTTOM_STICK_THRESHOLD_PX = 70.0;
+    private final Object chatHistoryLock = new Object();
+    private final List<Document> loadedHistory = new ArrayList<>();
+    private volatile boolean hasOlderMessages = false;
+    private volatile boolean loadingOlderMessages = false;
+    private volatile long oldestLoadedTimestamp = Long.MAX_VALUE;
+    private volatile String oldestLoadedMessageId = null;
+    private volatile long latestLoadedTimestamp = Long.MIN_VALUE;
+    private volatile String latestLoadedMessageId = null;
+    private volatile long lastChatActivityAt = 0L;
+    private volatile boolean autoStickToBottom = true;
+    private volatile boolean suppressScrollEvents = false;
     private static final java.util.Map<String, Image> IMAGE_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Map<String, Image> USER_AVATAR_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
     private static volatile List<String> cachedActiveInboxes = List.of();
     private static volatile List<String> cachedArchivedInboxes = List.of();
+    private static volatile List<String> cachedRequestInboxes = List.of();
     private static final long MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024;
     private static final Pattern URL_PATTERN = Pattern.compile("(https?://\\S+|www\\.\\S+)");
     private boolean isChatBlocked = false;
@@ -240,7 +263,7 @@ public class MainController {
     @FXML
     public void initialize() {
         isAppActive = true;
-        setActive(chatBtn, chatBtn, archiveBtn, profileBtn, settingsBtn);
+        setActive(chatBtn, chatBtn, archiveBtn, messageRequestBtn,profileBtn, settingsBtn);
         SmoothScrollUtil.apply(messagesScroll);
 
         bindControllerLifecycle();
@@ -265,8 +288,12 @@ public class MainController {
         startGlobalInboxListener();
 
         if (messagesBox != null && messagesScroll != null) {
-            messagesBox.heightProperty().addListener((observable, oldValue, newValue) -> {
-                messagesScroll.setVvalue(1.0);
+            messagesScroll.vvalueProperty().addListener((observable, oldValue, newValue) -> {
+                if (suppressScrollEvents) return;
+                autoStickToBottom = isNearBottom();
+                if (newValue.doubleValue() <= TOP_FETCH_THRESHOLD) {
+                    loadOlderMessages();
+                }
             });
         }
     }
@@ -326,7 +353,10 @@ public class MainController {
     }
 
     private void applyCachedRecentChats() {
-        List<String> cached = showingArchived ? cachedArchivedInboxes : cachedActiveInboxes;
+        List<String> cached = showingMessageRequests
+                ? cachedRequestInboxes
+                : showingArchived ? cachedArchivedInboxes : cachedActiveInboxes;
+
         if (cached != null && !cached.isEmpty()) {
             applyRecentChatsToUi(new ArrayList<>(cached));
         }
@@ -334,7 +364,10 @@ public class MainController {
 
     private void updateRecentChatsCache(List<String> partners) {
         List<String> snapshot = List.copyOf(partners);
-        if (showingArchived) {
+
+        if (showingMessageRequests) {
+            cachedRequestInboxes = snapshot;
+        } else if (showingArchived) {
             cachedArchivedInboxes = snapshot;
         } else {
             cachedActiveInboxes = snapshot;
@@ -348,24 +381,9 @@ public class MainController {
 
         try {
             GroupSettingsController.targetGroupId = groupId;
-
-            Stage stage = (Stage) chatTitleLabel.getScene().getWindow();
-            Scene scene = stage.getScene();
-            Parent root = new FXMLLoader(MainApp.class.getResource("/group_settings.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = chatTitleLabel.getScene();
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/group_settings.fxml", cssPath);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -485,7 +503,7 @@ public class MainController {
         if (chatBtn != null) chatBtn.setMaxWidth(Double.MAX_VALUE);
         if (archiveBtn != null) archiveBtn.setMaxWidth(Double.MAX_VALUE);
         if (settingsBtn != null) settingsBtn.setMaxWidth(Double.MAX_VALUE);
-
+        if (messageRequestBtn != null) messageRequestBtn.setMaxWidth(Double.MAX_VALUE);
         collapseDelay = new PauseTransition(COLLAPSE_DELAY);
         collapseDelay.setOnFinished(e -> {
             if (!drawerOpen && !mouseOverSidebar && !themeSwitching && !sidebarBusy) {
@@ -626,9 +644,27 @@ public class MainController {
 
     private Image getCachedImage(String url) {
         if (url == null) return null;
-        String key = url.trim();
+        String key = ImgBbService.toDisplayableUrl(url);
+        if (key == null) return null;
+        key = key.trim();
         if (key.isEmpty()) return null;
-        return IMAGE_CACHE.computeIfAbsent(key, u -> new Image(u, true));
+        return IMAGE_CACHE.compute(key, (k, existing) -> {
+            if (existing != null && !existing.isError()) {
+                return existing;
+            }
+            Image fresh = new Image(k, true);
+            fresh.errorProperty().addListener((obs, oldVal, hasError) -> {
+                if (Boolean.TRUE.equals(hasError)) {
+                    IMAGE_CACHE.remove(k, fresh);
+                }
+            });
+            return fresh;
+        });
+    }
+
+    public static void invalidateCachedUserAvatar(String username) {
+        if (username == null || username.isBlank()) return;
+        USER_AVATAR_CACHE.remove(username);
     }
 
     private Image getFallbackAvatarImage() {
@@ -745,6 +781,145 @@ public class MainController {
         }
     }
 
+    private boolean isMessageRequestHeaderItem(String item) {
+        return MESSAGE_REQUEST_HEADER_ITEM.equals(item);
+    }
+
+    private boolean isMessageRequestItem(String item) {
+        if (item == null || item.isBlank() || isMessageRequestHeaderItem(item)) {
+            return false;
+        }
+        String[] parts = item.split(":::");
+        return parts.length > 4 && MESSAGE_REQUEST_ITEM_FLAG.equals(parts[4]);
+    }
+
+    private String markAsMessageRequestItem(String item) {
+        if (item == null || item.isBlank() || isMessageRequestItem(item)) {
+            return item;
+        }
+        return item + ":::" + MESSAGE_REQUEST_ITEM_FLAG;
+    }
+
+    private String extractDisplayPartFromInboxItem(String item) {
+        if (item == null || item.isBlank() || isMessageRequestHeaderItem(item)) {
+            return "";
+        }
+        String[] parts = item.split(":::");
+        return parts.length == 0 ? "" : parts[0];
+    }
+
+    private String extractUsernameFromInboxItem(String item) {
+        String displayPart = extractDisplayPartFromInboxItem(item);
+        if (displayPart.isBlank()) {
+            return "";
+        }
+        if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
+            return displayPart.substring(displayPart.lastIndexOf(" (@") + 3, displayPart.length() - 1);
+        }
+        return displayPart;
+    }
+
+    private String extractDisplayNameFromInboxItem(String item) {
+        String displayPart = extractDisplayPartFromInboxItem(item);
+        if (displayPart.isBlank()) {
+            return "";
+        }
+        if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
+            return displayPart.substring(0, displayPart.lastIndexOf(" (@"));
+        }
+        return displayPart;
+    }
+
+    private void acceptMessageRequestForItem(String item) {
+        UserProfile me = Session.getProfile();
+        if (me == null || me.username == null) {
+            return;
+        }
+        String partnerUser = extractUsernameFromInboxItem(item);
+        if (partnerUser.isBlank() || isGroupChatSelection(partnerUser)) {
+            return;
+        }
+
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return MessageService.acceptMessageRequest(me.username, partnerUser);
+            }
+        };
+        task.setOnSucceeded(ev -> {
+            if (Boolean.TRUE.equals(task.getValue())) {
+                pendingOpenChatUsername = partnerUser;
+                loadRecentChats();
+            }
+        });
+        Thread thread = new Thread(task, "accept-message-request");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void deleteMessageRequestForItem(String item) {
+        UserProfile me = Session.getProfile();
+        if (me == null || me.username == null) {
+            return;
+        }
+        String partnerUser = extractUsernameFromInboxItem(item);
+        if (partnerUser.isBlank() || isGroupChatSelection(partnerUser)) {
+            return;
+        }
+
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                return MessageService.deleteMessageRequest(me.username, partnerUser);
+            }
+        };
+        task.setOnSucceeded(ev -> {
+            if (Boolean.TRUE.equals(task.getValue())) {
+                if (partnerUser.equals(currentChatUsername)) {
+                    currentChatUsername = null;
+                }
+                loadRecentChats();
+            }
+        });
+        Thread thread = new Thread(task, "delete-message-request");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void blockMessageRequestForItem(String item) {
+        UserProfile me = Session.getProfile();
+        if (me == null || me.username == null) {
+            return;
+        }
+        String partnerUser = extractUsernameFromInboxItem(item);
+        if (partnerUser.isBlank() || isGroupChatSelection(partnerUser)) {
+            return;
+        }
+
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() {
+                boolean blocked = UserService.blockUser(me.username, partnerUser);
+                if (blocked) {
+                    MessageService.clearMessageRequestAcceptance(me.username, partnerUser);
+                    MessageService.deleteChatHistory(me.username, partnerUser);
+                }
+                return blocked;
+            }
+        };
+        task.setOnSucceeded(ev -> {
+            if (Boolean.TRUE.equals(task.getValue())) {
+                if (partnerUser.equals(currentChatUsername)) {
+                    currentChatUsername = null;
+                }
+                loadRecentChats();
+            }
+        });
+        Thread thread = new Thread(task, "block-message-request");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     private void initDemoInbox() {
         if (usersList == null) return;
 
@@ -769,6 +944,17 @@ public class MainController {
                     setText(null); setGraphic(null); return;
                 }
 
+                if (isMessageRequestHeaderItem(item)) {
+                    Label header = new Label("Message Requests");
+                    header.setStyle("-fx-text-fill: -lm-muted; -fx-font-size: 11.5px; -fx-font-weight: 800;");
+                    HBox headerRow = new HBox(header);
+                    headerRow.setAlignment(Pos.CENTER_LEFT);
+                    headerRow.setPadding(new Insets(8, 12, 6, 12));
+                    setGraphic(headerRow);
+                    setText(null);
+                    return;
+                }
+
                 if (row == null) {
                     name = new Label(); name.getStyleClass().add("inbox-name");
                     preview = new Label(); preview.getStyleClass().add("inbox-preview");
@@ -782,19 +968,22 @@ public class MainController {
                     MenuItem archiveItem = new MenuItem("Archive");
                     MenuItem deleteItem = new MenuItem("Delete");
                     MenuItem profileItem = new MenuItem("View Profile");
+                    MenuItem acceptRequestItem = new MenuItem("Accept");
+                    MenuItem deleteRequestItem = new MenuItem("Delete");
+                    MenuItem blockRequestItem = new MenuItem("Block");
 
                     archiveItem.setOnAction(e -> {
-                        String curItem = getItem(); if (curItem == null) return;
-                        String dPart = curItem.split(":::")[0];
-                        String partnerUser = dPart.contains(" (@") ? dPart.substring(dPart.lastIndexOf(" (@") + 3, dPart.length() - 1) : dPart;
+                        String curItem = getItem(); if (curItem == null || isMessageRequestHeaderItem(curItem)) return;
+                        String partnerUser = extractUsernameFromInboxItem(curItem);
+                        if (partnerUser.isBlank()) return;
                         UserProfile me = Session.getProfile();
                         if (me != null) { UserService.toggleArchive(me.username, partnerUser, !showingArchived); loadRecentChats(); }
                     });
 
                     deleteItem.setOnAction(e -> {
-                        String curItem = getItem(); if (curItem == null) return;
-                        String dPart = curItem.split(":::")[0];
-                        String partnerUser = dPart.contains(" (@") ? dPart.substring(dPart.lastIndexOf(" (@") + 3, dPart.length() - 1) : dPart;
+                        String curItem = getItem(); if (curItem == null || isMessageRequestHeaderItem(curItem)) return;
+                        String partnerUser = extractUsernameFromInboxItem(curItem);
+                        if (partnerUser.isBlank()) return;
                         UserProfile me = Session.getProfile();
                         if (me != null) {
                             MessageService.deleteChatHistory(me.username, partnerUser);
@@ -809,26 +998,36 @@ public class MainController {
                     });
 
                     profileItem.setOnAction(e -> {
-                        String curItem = getItem(); if (curItem == null) return;
-                        String dPart = curItem.split(":::")[0];
-                        String partnerUser = dPart.contains(" (@") ? dPart.substring(dPart.lastIndexOf(" (@") + 3, dPart.length() - 1) : dPart;
+                        String curItem = getItem(); if (curItem == null || isMessageRequestHeaderItem(curItem)) return;
+                        String partnerUser = extractUsernameFromInboxItem(curItem);
+                        if (partnerUser.isBlank()) return;
                         if (isGroupChatSelection(partnerUser)) return;
                         ViewProfileController.targetUsername = partnerUser;
                         ViewProfileController.returnTarget = ViewProfileController.ReturnTarget.MAIN;
                         try {
-                            Stage stage = (Stage) menuBtn.getScene().getWindow();
-                            Scene scene = stage.getScene();
-                            Parent root = new FXMLLoader(MainApp.class.getResource("/view_profile.fxml")).load();
-                            root.setOpacity(0);
-                            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-                            out.setFromValue(1); out.setToValue(0);
-                            out.setOnFinished(ev -> {
-                                scene.setRoot(root); ThemeManager.applyMainTheme(scene);
-                                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                                in.setFromValue(0); in.setToValue(1); in.play();
-                            });
-                            out.play();
+                            Scene scene = menuBtn.getScene();
+                            if (scene == null) return;
+                            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+                            SceneNavigator.swapRootWithFade(scene, "/view_profile.fxml", cssPath);
                         } catch (Exception ex) { ex.printStackTrace(); }
+                    });
+
+                    acceptRequestItem.setOnAction(e -> {
+                        String curItem = getItem();
+                        if (curItem == null) return;
+                        acceptMessageRequestForItem(curItem);
+                    });
+
+                    deleteRequestItem.setOnAction(e -> {
+                        String curItem = getItem();
+                        if (curItem == null) return;
+                        deleteMessageRequestForItem(curItem);
+                    });
+
+                    blockRequestItem.setOnAction(e -> {
+                        String curItem = getItem();
+                        if (curItem == null) return;
+                        blockMessageRequestForItem(curItem);
                     });
 
                     contextMenu.getItems().addAll(archiveItem, deleteItem);
@@ -838,12 +1037,15 @@ public class MainController {
                         archiveItem.setText(showingArchived ? "Unarchive" : "Archive");
                         String curItem = getItem();
                         if (curItem != null) {
-                            String dPart = curItem.split(":::")[0];
-                            String partnerUser = dPart.contains(" (@") ? dPart.substring(dPart.lastIndexOf(" (@") + 3, dPart.length() - 1) : dPart;
-                            boolean isGroup = isGroupChatSelection(partnerUser);
-                            contextMenu.getItems().setAll(archiveItem, deleteItem);
-                            if (!isGroup) {
-                                contextMenu.getItems().add(profileItem);
+                            if (isMessageRequestItem(curItem)) {
+                                contextMenu.getItems().setAll(acceptRequestItem, deleteRequestItem, blockRequestItem);
+                            } else if (!isMessageRequestHeaderItem(curItem)) {
+                                String partnerUser = extractUsernameFromInboxItem(curItem);
+                                boolean isGroup = isGroupChatSelection(partnerUser);
+                                contextMenu.getItems().setAll(archiveItem, deleteItem);
+                                if (!isGroup) {
+                                    contextMenu.getItems().add(profileItem);
+                                }
                             }
                         }
                         contextMenu.show(menuBtn, e.getScreenX(), e.getScreenY());
@@ -861,23 +1063,22 @@ public class MainController {
                     row.getStyleClass().add("inbox-row");
                 }
 
-                String displayPart = item;
+                boolean requestItem = isMessageRequestItem(item);
+                String displayPart = extractDisplayPartFromInboxItem(item);
                 long timestamp = System.currentTimeMillis();
                 String previewText = "New conversation";
                 int unreadCountNum = 0;
 
                 if (item.contains(":::")) {
                     String[] parts = item.split(":::");
-                    displayPart = parts[0];
                     if (parts.length > 1) try { timestamp = Long.parseLong(parts[1]); } catch(Exception ignored){}
                     if (parts.length > 2) previewText = parts[2];
                     if (parts.length > 3) try { unreadCountNum = Integer.parseInt(parts[3]); } catch(Exception ignored){}
                 }
 
-                String displayName = displayPart;
-                if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
-                    int atIndex = displayPart.lastIndexOf(" (@");
-                    displayName = displayPart.substring(0, atIndex);
+                String displayName = extractDisplayNameFromInboxItem(item);
+                if (requestItem) {
+                    displayName = "Request - " + displayName;
                 }
 
                 name.setText(displayName);
@@ -897,7 +1098,11 @@ public class MainController {
                 HBox rightBox = new HBox(8);
                 rightBox.setAlignment(Pos.CENTER_RIGHT);
 
-                if (unreadCountNum > 0 && !displayPart.contains("(@" + currentChatUsername + ")")) {
+                if (requestItem) {
+                    name.setStyle("-fx-font-weight: 900; -fx-text-fill: -lm-text;");
+                    preview.setStyle("-fx-font-weight: 700; -fx-text-fill: -lm-muted;");
+                    rightBox.getChildren().addAll(time, menuBtn);
+                } else if (unreadCountNum > 0 && !displayPart.contains("(@" + currentChatUsername + ")")) {
                     name.setStyle("-fx-font-weight: 900; -fx-text-fill: -lm-text;");
                     preview.setStyle("-fx-font-weight: bold; -fx-text-fill: -lm-text;");
                     rightBox.getChildren().addAll(blueDot, badgeLabel, time, menuBtn);
@@ -924,7 +1129,12 @@ public class MainController {
         });
 
         usersList.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
-            if (newV != null) selectInbox(newV);
+            if (newV == null) return;
+            if (isMessageRequestHeaderItem(newV)) {
+                Platform.runLater(() -> usersList.getSelectionModel().clearSelection());
+                return;
+            }
+            selectInbox(newV);
         });
 
         if (searchField != null) {
@@ -958,45 +1168,22 @@ public class MainController {
     private void startChatListener(String me, String partner) {
         stopChatListener();
         keepListening = true;
-        displayedMessageCount = 0;
+        resetLoadedHistoryState();
+        autoStickToBottom = true;
 
         chatListenerThread = new Thread(() -> {
+            try {
+                loadInitialChatPage(me, partner);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             while (keepListening) {
+                if (!partner.equals(currentChatUsername)) {
+                    break;
+                }
                 try {
-                    List<Document> history = MessageService.getChatHistory(me, partner);
-
-                    boolean changed = false;
-                    if (history.size() != lastHistory.size()) {
-                        changed = true;
-                    } else {
-                        for (int i = 0; i < history.size(); i++) {
-                            if (!history.get(i).getString("text").equals(lastHistory.get(i).getString("text"))) {
-                                changed = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (changed) {
-                        lastHistory = new ArrayList<>(history);
-                        MessageService.markMessagesAsRead(me, partner);
-                        Platform.runLater(() -> {
-                            messagesBox.getChildren().clear();
-                            lastMessageTimestamp = 0;
-                            lastSender = null;
-                            lastBubbleRow = null;
-
-                            for (Document doc : history) {
-                                if (doc.getString("sender").equals(me)) addBubble(Sender.ME, doc);
-                                else addBubble(Sender.OTHER, doc);
-                            }
-                            scrollToBottom();
-
-                            if (searchField.getText() == null || searchField.getText().trim().isEmpty()) {
-                                loadRecentChats();
-                            }
-                        });
-                    }
+                    pollChatChanges(me, partner);
                     long now = System.currentTimeMillis();
                     if (now - lastBlockedCheckAt > 4000) {
                         lastBlockedCheckAt = now;
@@ -1007,7 +1194,7 @@ public class MainController {
                             Platform.runLater(() -> applyBlockedState(blocked, blockedByMe));
                         }
                     }
-                    Thread.sleep(400);
+                    Thread.sleep(300);
                 } catch (InterruptedException e) {
                     break;
                 } catch (Exception e) {
@@ -1019,6 +1206,368 @@ public class MainController {
         chatListenerThread.start();
     }
 
+    private void loadInitialChatPage(String me, String partner) {
+        List<Document> latest = MessageService.getLatestChatHistory(me, partner, CHAT_PAGE_SIZE);
+        if (!partner.equals(currentChatUsername)) return;
+        synchronized (chatHistoryLock) {
+            loadedHistory.clear();
+            loadedHistory.addAll(latest);
+            pruneExpiredMessagesLocked();
+            hasOlderMessages = latest.size() >= CHAT_PAGE_SIZE;
+            syncHistoryBoundariesLocked();
+        }
+
+        MessageService.markMessagesAsRead(me, partner);
+        Platform.runLater(() -> {
+            if (!keepListening || !partner.equals(currentChatUsername)) return;
+            renderCurrentChatHistory(true);
+            if (searchField.getText() == null || searchField.getText().trim().isEmpty()) {
+                loadRecentChats();
+            }
+        });
+    }
+
+    private void pollChatChanges(String me, String partner) {
+        if (!partner.equals(currentChatUsername)) return;
+        long since = lastChatActivityAt;
+        List<Document> changedDocs = MessageService.getChatChangesSince(me, partner, since, CHAT_CHANGES_BATCH_SIZE);
+        if (!partner.equals(currentChatUsername)) return;
+        boolean changed;
+        synchronized (chatHistoryLock) {
+            changed = mergeChangedMessagesLocked(changedDocs);
+            boolean pruned = pruneExpiredMessagesLocked();
+            if (pruned) {
+                changed = true;
+            }
+            syncHistoryBoundariesLocked();
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        MessageService.markMessagesAsRead(me, partner);
+        Platform.runLater(() -> {
+            if (!keepListening || !partner.equals(currentChatUsername)) return;
+            boolean stickBottom = autoStickToBottom;
+            renderCurrentChatHistory(stickBottom);
+            if (searchField.getText() == null || searchField.getText().trim().isEmpty()) {
+                loadRecentChats();
+            }
+        });
+    }
+
+    private boolean mergeChangedMessagesLocked(List<Document> changedDocs) {
+        if (changedDocs == null || changedDocs.isEmpty()) {
+            return false;
+        }
+
+        boolean mutated = false;
+        Set<String> incomingIds = new HashSet<>();
+        for (Document doc : changedDocs) {
+            if (doc == null) continue;
+            String id = extractMessageId(doc);
+            if (id == null || !incomingIds.add(id)) continue;
+
+            lastChatActivityAt = Math.max(lastChatActivityAt, extractActivity(doc));
+
+            int existingIndex = findLoadedMessageIndexLocked(id);
+            if (existingIndex >= 0) {
+                Document existing = loadedHistory.get(existingIndex);
+                if (!doc.equals(existing)) {
+                    loadedHistory.set(existingIndex, doc);
+                    mutated = true;
+                }
+                continue;
+            }
+
+            if (isNewerThanLatestLocked(doc)) {
+                loadedHistory.add(doc);
+                mutated = true;
+            }
+        }
+
+        if (mutated) {
+            loadedHistory.sort(this::compareMessageOrder);
+        }
+        return mutated;
+    }
+
+    private boolean isNewerThanLatestLocked(Document doc) {
+        if (loadedHistory.isEmpty() || latestLoadedMessageId == null) {
+            return true;
+        }
+
+        long candidateTs = extractTimestamp(doc);
+        int byTs = Long.compare(candidateTs, latestLoadedTimestamp);
+        if (byTs != 0) {
+            return byTs > 0;
+        }
+
+        ObjectId candidateId = doc.getObjectId("_id");
+        ObjectId latestId = parseObjectId(latestLoadedMessageId);
+        if (candidateId == null || latestId == null) {
+            return false;
+        }
+        return candidateId.compareTo(latestId) > 0;
+    }
+
+    private void loadOlderMessages() {
+        if (loadingOlderMessages || !hasOlderMessages || currentChatUsername == null) return;
+        UserProfile me = Session.getProfile();
+        if (me == null) return;
+
+        String partner = currentChatUsername;
+        long anchorTimestamp = oldestLoadedTimestamp;
+        String anchorId = oldestLoadedMessageId;
+        if (anchorId == null || anchorTimestamp == Long.MAX_VALUE) return;
+
+        loadingOlderMessages = true;
+        double previousTopPixel = getScrollTopPixel();
+        double previousContentHeight = messagesBox == null ? 0 : messagesBox.getHeight();
+
+        Thread olderThread = new Thread(() -> {
+            try {
+                List<Document> older = MessageService.getChatHistoryBefore(me.username, partner, anchorTimestamp, anchorId, CHAT_PAGE_SIZE);
+                if (!partner.equals(currentChatUsername)) {
+                    return;
+                }
+
+                boolean appended = false;
+                synchronized (chatHistoryLock) {
+                    if (older.isEmpty()) {
+                        hasOlderMessages = false;
+                    } else {
+                        Set<String> knownIds = new HashSet<>();
+                        for (Document existing : loadedHistory) {
+                            String existingId = extractMessageId(existing);
+                            if (existingId != null) {
+                                knownIds.add(existingId);
+                            }
+                        }
+
+                        for (Document doc : older) {
+                            String id = extractMessageId(doc);
+                            if (id != null && knownIds.add(id)) {
+                                loadedHistory.add(doc);
+                                appended = true;
+                            }
+                        }
+
+                        hasOlderMessages = older.size() >= CHAT_PAGE_SIZE;
+                        pruneExpiredMessagesLocked();
+                        if (appended) {
+                            loadedHistory.sort(this::compareMessageOrder);
+                        }
+                        syncHistoryBoundariesLocked();
+                    }
+                }
+
+                if (appended) {
+                    Platform.runLater(() -> {
+                        if (!partner.equals(currentChatUsername)) return;
+                        renderCurrentChatHistoryPreserveTop(previousTopPixel, previousContentHeight);
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                loadingOlderMessages = false;
+            }
+        }, "load-older-messages");
+        olderThread.setDaemon(true);
+        olderThread.start();
+    }
+
+    private void renderCurrentChatHistory(boolean scrollToBottomAfterRender) {
+        rebuildMessageArea(snapshotLoadedHistory());
+        if (scrollToBottomAfterRender) {
+            scrollToBottom();
+        }
+    }
+
+    private void renderCurrentChatHistoryPreserveTop(double previousTopPixel, double previousContentHeight) {
+        rebuildMessageArea(snapshotLoadedHistory());
+        if (messagesBox == null || messagesScroll == null) return;
+
+        messagesBox.applyCss();
+        messagesBox.layout();
+        messagesScroll.layout();
+
+        double newContentHeight = messagesBox.getHeight();
+        double targetTopPixel = previousTopPixel + Math.max(0, newContentHeight - previousContentHeight);
+        setScrollTopPixel(targetTopPixel);
+    }
+
+    private void rebuildMessageArea(List<Document> history) {
+        if (messagesBox == null) return;
+        messagesBox.getChildren().clear();
+        lastMessageTimestamp = 0;
+        lastSender = null;
+        lastBubbleRow = null;
+
+        UserProfile me = Session.getProfile();
+        String myUsername = me == null ? null : me.username;
+
+        for (Document doc : history) {
+            if (doc == null) continue;
+            String senderUsername = doc.getString("sender");
+            if (myUsername != null && myUsername.equals(senderUsername)) {
+                addBubble(Sender.ME, doc);
+            } else {
+                addBubble(Sender.OTHER, doc);
+            }
+        }
+    }
+
+    private List<Document> snapshotLoadedHistory() {
+        synchronized (chatHistoryLock) {
+            return new ArrayList<>(loadedHistory);
+        }
+    }
+
+    private void resetLoadedHistoryState() {
+        synchronized (chatHistoryLock) {
+            loadedHistory.clear();
+        }
+        hasOlderMessages = false;
+        loadingOlderMessages = false;
+        oldestLoadedTimestamp = Long.MAX_VALUE;
+        oldestLoadedMessageId = null;
+        latestLoadedTimestamp = Long.MIN_VALUE;
+        latestLoadedMessageId = null;
+        lastChatActivityAt = 0L;
+    }
+
+    private boolean pruneExpiredMessagesLocked() {
+        long cutoff = System.currentTimeMillis() - CHAT_RETENTION_MILLIS;
+        return loadedHistory.removeIf(doc -> extractTimestamp(doc) < cutoff);
+    }
+
+    private void syncHistoryBoundariesLocked() {
+        if (loadedHistory.isEmpty()) {
+            oldestLoadedTimestamp = Long.MAX_VALUE;
+            oldestLoadedMessageId = null;
+            latestLoadedTimestamp = Long.MIN_VALUE;
+            latestLoadedMessageId = null;
+            if (lastChatActivityAt == 0L) {
+                lastChatActivityAt = System.currentTimeMillis();
+            }
+            return;
+        }
+
+        loadedHistory.sort(this::compareMessageOrder);
+        Document oldest = loadedHistory.get(0);
+        Document latest = loadedHistory.get(loadedHistory.size() - 1);
+        oldestLoadedTimestamp = extractTimestamp(oldest);
+        oldestLoadedMessageId = extractMessageId(oldest);
+        latestLoadedTimestamp = extractTimestamp(latest);
+        latestLoadedMessageId = extractMessageId(latest);
+
+        long maxActivity = lastChatActivityAt;
+        for (Document doc : loadedHistory) {
+            maxActivity = Math.max(maxActivity, extractActivity(doc));
+        }
+        lastChatActivityAt = maxActivity;
+    }
+
+    private int findLoadedMessageIndexLocked(String messageId) {
+        for (int i = 0; i < loadedHistory.size(); i++) {
+            String existingId = extractMessageId(loadedHistory.get(i));
+            if (messageId.equals(existingId)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int compareMessageOrder(Document left, Document right) {
+        long leftTs = extractTimestamp(left);
+        long rightTs = extractTimestamp(right);
+        int byTs = Long.compare(leftTs, rightTs);
+        if (byTs != 0) {
+            return byTs;
+        }
+
+        ObjectId leftId = left == null ? null : left.getObjectId("_id");
+        ObjectId rightId = right == null ? null : right.getObjectId("_id");
+        if (leftId == null && rightId == null) return 0;
+        if (leftId == null) return -1;
+        if (rightId == null) return 1;
+        return leftId.compareTo(rightId);
+    }
+
+    private String extractMessageId(Document doc) {
+        if (doc == null) return null;
+        ObjectId objectId = doc.getObjectId("_id");
+        return objectId == null ? null : objectId.toHexString();
+    }
+
+    private long extractTimestamp(Document doc) {
+        if (doc == null) return 0L;
+        Object value = doc.get("timestamp");
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return 0L;
+    }
+
+    private long extractActivity(Document doc) {
+        long timestamp = extractTimestamp(doc);
+        if (doc == null) return timestamp;
+        Object value = doc.get("lastModifiedAt");
+        if (value instanceof Number number) {
+            return Math.max(timestamp, number.longValue());
+        }
+        return timestamp;
+    }
+
+    private ObjectId parseObjectId(String id) {
+        if (id == null || id.isBlank()) return null;
+        try {
+            return new ObjectId(id);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isNearBottom() {
+        if (messagesScroll == null || messagesBox == null) return true;
+        double scrollable = Math.max(0, messagesBox.getHeight() - messagesScroll.getViewportBounds().getHeight());
+        if (scrollable <= 0) return true;
+        double remaining = scrollable - getScrollTopPixel();
+        return remaining <= BOTTOM_STICK_THRESHOLD_PX;
+    }
+
+    private double getScrollTopPixel() {
+        if (messagesScroll == null || messagesBox == null) return 0;
+        double scrollable = Math.max(0, messagesBox.getHeight() - messagesScroll.getViewportBounds().getHeight());
+        return messagesScroll.getVvalue() * scrollable;
+    }
+
+    private void setScrollTopPixel(double topPixel) {
+        if (messagesScroll == null || messagesBox == null) return;
+        double scrollable = Math.max(0, messagesBox.getHeight() - messagesScroll.getViewportBounds().getHeight());
+        if (scrollable <= 0) {
+            setScrollVValueSafely(1.0);
+            return;
+        }
+        double normalized = topPixel / scrollable;
+        setScrollVValueSafely(normalized);
+    }
+
+    private void setScrollVValueSafely(double v) {
+        if (messagesScroll == null) return;
+        double clamped = Math.max(0.0, Math.min(1.0, v));
+        suppressScrollEvents = true;
+        try {
+            messagesScroll.setVvalue(clamped);
+        } finally {
+            suppressScrollEvents = false;
+        }
+        autoStickToBottom = isNearBottom();
+    }
+
     private void stopChatListener() {
         keepListening = false;
         if (chatListenerThread != null) {
@@ -1027,19 +1576,11 @@ public class MainController {
     }
 
     private void selectInbox(String item) {
-        if (item == null || item.isEmpty()) return;
+        if (item == null || item.isEmpty() || isMessageRequestHeaderItem(item)) return;
 
-        String displayPart = item.split(":::")[0];
-        String displayName = displayPart;
-        String username = "";
-
-        if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
-            int atIndex = displayPart.lastIndexOf(" (@");
-            displayName = displayPart.substring(0, atIndex);
-            username = displayPart.substring(atIndex + 3, displayPart.length() - 1);
-        } else {
-            username = displayPart;
-        }
+        String displayName = extractDisplayNameFromInboxItem(item);
+        String username = extractUsernameFromInboxItem(item);
+        if (username.isBlank()) return;
 
         if (username.equals(currentChatUsername)) return;
         currentChatUsername = username;
@@ -1084,22 +1625,13 @@ public class MainController {
             messagesBox.getChildren().clear();
             lastSender = null; lastBubbleRow = null;
         }
+        resetLoadedHistoryState();
 
         UserProfile me = Session.getProfile();
         if (me != null && currentChatUsername != null) {
-
-            Thread markReadThread = new Thread(() -> {
-                MessageService.markMessagesAsRead(me.username, currentChatUsername);
-                Platform.runLater(this::loadRecentChats);
-            }, "mark-chat-read");
-            markReadThread.setDaemon(true);
-            markReadThread.start();
-
             startChatListener(me.username, currentChatUsername);
         }
         updateBlockedState();
-
-        Platform.runLater(this::scrollToBottom);
 
         if (usersList != null) {
             int idx = usersList.getItems().indexOf(item);
@@ -1117,9 +1649,10 @@ public class MainController {
         if (messagesScroll == null || messagesBox == null) return;
 
         Platform.runLater(() -> {
+            if (messagesScroll == null || messagesBox == null) return;
             messagesBox.layout();
             messagesScroll.layout();
-            messagesScroll.setVvalue(1.0);
+            setScrollVValueSafely(1.0);
         });
     }
 
@@ -1131,7 +1664,13 @@ public class MainController {
             chatTitleLabel.setVisible(false);
         }
         if (chatSubtitleLabel != null) {
-            chatSubtitleLabel.setText(archivedMode ? "Your archived conversations will appear here" : "Choose a conversation or search a user to begin");
+            String emptyText = showingMessageRequests
+                    ? "Message requests will appear here"
+                    : archivedMode
+                    ? "Your archived conversations will appear here"
+                    : "Choose a conversation or search a user to begin";
+
+            chatSubtitleLabel.setText(emptyText);
             chatSubtitleLabel.setStyle("-fx-text-fill: -lm-muted; -fx-font-size: 11.5px; -fx-opacity: 0.72; -fx-font-weight: 600;");
             chatSubtitleLabel.setManaged(true);
             chatSubtitleLabel.setVisible(true);
@@ -1148,6 +1687,7 @@ public class MainController {
         if (messagesBox != null) {
             messagesBox.getChildren().clear();
         }
+        resetLoadedHistoryState();
         hideChatHeaderAvatar();
         applyBlockedState(false, false);
     }
@@ -1671,31 +2211,13 @@ public class MainController {
                     fileContent = baos.toByteArray();
                 }
 
-                String base64Image = java.util.Base64.getEncoder().encodeToString(fileContent);
-                String encodedImage = java.net.URLEncoder.encode(base64Image, java.nio.charset.StandardCharsets.UTF_8);
-
-                String IMGBB_API_KEY = "17693c9a056e83534dd33131bcd568c9";
-                String formData = "key=" + IMGBB_API_KEY + "&image=" + encodedImage + "&expiration=172800";
-
-                java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create("https://api.imgbb.com/1/upload"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(formData))
-                        .build();
-
-                java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
-                String resBody = response.body();
-
-                if (resBody.contains("\"url\":\"")) {
-                    int start = resBody.indexOf("\"url\":\"") + 7;
-                    int end = resBody.indexOf("\"", start);
-                    String imgUrl = resBody.substring(start, end).replace("\\/", "/");
-
-                    MessageService.sendImageMessage(sender, receiver, imgUrl, finalRepName, finalRepText);
-                    return true;
+                ImgBbService.UploadResult uploadResult = ImgBbService.uploadImage(fileContent, 7 * 24 * 60 * 60);
+                if (uploadResult == null || uploadResult.imageUrl == null || uploadResult.imageUrl.isBlank()) {
+                    return false;
                 }
-                return false;
+
+                MessageService.sendImageMessage(sender, receiver, uploadResult.imageUrl, finalRepName, finalRepText);
+                return true;
             }
         };
 
@@ -1822,8 +2344,9 @@ public class MainController {
 
     @FXML
     public void onChatClick() {
-        setActive(chatBtn, chatBtn, archiveBtn, profileBtn, settingsBtn);
+        setActive(chatBtn, chatBtn, archiveBtn, messageRequestBtn, profileBtn, settingsBtn);
         showingArchived = false;
+        showingMessageRequests = false;
         applyCachedRecentChats();
         loadRecentChats();
     }
@@ -1831,24 +2354,10 @@ public class MainController {
     private void onFriendsClick(ActionEvent event) {
 
         try {
-            Stage stage = (Stage) btnFriends.getScene().getWindow();
-            Scene scene = stage.getScene();
-
-            Parent root = new FXMLLoader(MainApp.class.getResource("/friends.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = btnFriends.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/friends.fxml", cssPath);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1857,24 +2366,10 @@ public class MainController {
     @FXML
     private void onMomentsClick(ActionEvent event) {
         try {
-            Stage stage = (Stage) btnMoments.getScene().getWindow();
-            Scene scene = stage.getScene();
-
-            Parent root = new FXMLLoader(MainApp.class.getResource("/moments.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = btnMoments.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/moments.fxml", cssPath);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1882,14 +2377,15 @@ public class MainController {
 
     @FXML
     public void onArchiveClick() {
-        setActive(archiveBtn, chatBtn, archiveBtn, profileBtn, settingsBtn);
+        setActive(archiveBtn, chatBtn, archiveBtn, messageRequestBtn, profileBtn, settingsBtn);
         showingArchived = true;
+        showingMessageRequests = false;
         applyCachedRecentChats();
         loadRecentChats();
     }
     @FXML
     public void onOpenSettings() {
-        setActive(settingsBtn, chatBtn, archiveBtn, profileBtn, settingsBtn);
+        setActive(settingsBtn, chatBtn, archiveBtn, messageRequestBtn, profileBtn, settingsBtn);
         expandSidebar();
         openDrawer(DrawerMode.SETTINGS);
     }
@@ -1898,36 +2394,10 @@ public class MainController {
     public void onOpenProfile() {
 
         try {
-            Stage stage = (Stage) profileBtn.getScene().getWindow();
-            Scene scene = stage.getScene();
-
-            FXMLLoader loader = new FXMLLoader(MainApp.class.getResource("/profile.fxml"));
-            Parent profileRoot = loader.load();
-            profileRoot.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setInterpolator(Interpolator.EASE_BOTH);
-
-            out.setOnFinished(ev -> {
-                scene.setRoot(profileRoot);
-                scene.getStylesheets().clear();
-
-                if (MainApp.class.getResource("/main.css") != null) {
-                    scene.getStylesheets().add(MainApp.class.getResource("/main.css").toExternalForm());
-                }
-
-                ThemeManager.applyMainTheme(scene);
-
-                FadeTransition in = new FadeTransition(Duration.millis(250), profileRoot);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.setInterpolator(Interpolator.EASE_BOTH);
-                in.play();
-            });
-
-            out.play();
+            Scene scene = profileBtn.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/profile.fxml", cssPath);
         } catch (Exception ex) {
             ex.printStackTrace();
             System.err.println("Could not open Profile page.");
@@ -1983,7 +2453,15 @@ public class MainController {
             appRoot.setDisable(false);
         }
     }
-
+    @FXML
+    public void onMessageRequestsClick() {
+        setActive(messageRequestBtn, chatBtn, archiveBtn, messageRequestBtn, profileBtn, settingsBtn);
+        showingArchived = false;
+        showingMessageRequests = true;
+        currentChatUsername = null;
+        applyCachedRecentChats();
+        loadRecentChats();
+    }
     private void goToLogin() {
         try {
             Scene scene = (sidebar != null && sidebar.getScene() != null) ? sidebar.getScene() : (appRoot != null ? appRoot.getScene() : null);
@@ -2336,13 +2814,41 @@ public class MainController {
         new Thread(() -> {
             if (finalEditId != null) {
                 MessageService.editMessage(finalEditId, msg);
+
+                Platform.runLater(() -> {
+                    searchField.clear();
+                    pollChatChanges(myUsername, receiverUsername);
+                    loadRecentChats();
+                });
+
             } else {
-                MessageService.sendMessage(myUsername, receiverUsername, msg, finalRepName, finalRepText);
+                Document sentMessage = MessageService.sendMessage(
+                        myUsername,
+                        receiverUsername,
+                        msg,
+                        finalRepName,
+                        finalRepText
+                );
+
+                if (sentMessage != null && receiverUsername.equals(currentChatUsername)) {
+                    synchronized (chatHistoryLock) {
+                        loadedHistory.add(sentMessage);
+                        loadedHistory.sort(this::compareMessageOrder);
+                        syncHistoryBoundariesLocked();
+                    }
+
+                    Platform.runLater(() -> {
+                        searchField.clear();
+                        renderCurrentChatHistory(true);
+                        loadRecentChats();
+                    });
+                } else {
+                    Platform.runLater(() -> {
+                        searchField.clear();
+                        loadRecentChats();
+                    });
+                }
             }
-            Platform.runLater(() -> {
-                searchField.clear();
-                loadRecentChats();
-            });
         }, "send-message-task").start();
     }
 
@@ -2360,23 +2866,10 @@ public class MainController {
     @FXML
     public void onOpenBlockedUsers() {
         try {
-            Stage stage = (Stage) blockedItemBtn.getScene().getWindow();
-            Scene scene = stage.getScene();
-            Parent root = new FXMLLoader(MainApp.class.getResource("/blocked_users.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = blockedItemBtn.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/blocked_users.fxml", cssPath);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -2391,29 +2884,50 @@ public class MainController {
         if (me == null || me.username == null) return;
 
         final String[] inboxState = new String[1];
+
         Task<List<String>> loadTask = new Task<>() {
             @Override
             protected List<String> call() {
                 List<String> allPartners = preloadedPartners == null
                         ? MessageService.getRecentChatPartners(me.username)
                         : new ArrayList<>(preloadedPartners);
+
                 inboxState[0] = String.join("|", allPartners);
 
                 List<String> archivedUsers = UserService.getArchivedPartners(me.username);
                 List<String> filteredList = new ArrayList<>();
+
                 for (String partnerStr : allPartners) {
-                    String displayPart = partnerStr.split(":::")[0];
-                    String username;
-                    if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
-                        username = displayPart.substring(displayPart.lastIndexOf(" (@") + 3, displayPart.length() - 1);
-                    } else {
-                        username = displayPart;
+                    String username = extractUsernameFromInboxItem(partnerStr);
+                    if (username.isBlank()) {
+                        continue;
+                    }
+
+                    boolean requestItem = !isGroupChatSelection(username)
+                            && MessageService.shouldShowInMessageRequests(me.username, username);
+
+                    // Message Requests tab এ শুধু request গুলা দেখাবে
+                    if (showingMessageRequests) {
+                        if (requestItem) {
+                            filteredList.add(markAsMessageRequestItem(partnerStr));
+                        }
+                        continue;
+                    }
+
+                    // Normal Chat / Archive tab এ request দেখাবে না
+                    if (requestItem) {
+                        continue;
                     }
 
                     boolean isArchived = archivedUsers.contains(username);
-                    if (showingArchived && isArchived) filteredList.add(partnerStr);
-                    else if (!showingArchived && !isArchived) filteredList.add(partnerStr);
+
+                    if (showingArchived && isArchived) {
+                        filteredList.add(partnerStr);
+                    } else if (!showingArchived && !isArchived) {
+                        filteredList.add(partnerStr);
+                    }
                 }
+
                 return filteredList;
             }
         };
@@ -2422,6 +2936,7 @@ public class MainController {
             if (inboxState[0] != null) {
                 lastInboxState = inboxState[0];
             }
+
             List<String> partners = loadTask.getValue();
             updateRecentChatsCache(partners);
             applyRecentChatsToUi(partners);
@@ -2441,11 +2956,10 @@ public class MainController {
         String pending = pendingOpenChatUsername;
         if (pending != null && !pending.isBlank()) {
             for (String partner : partners) {
-                String displayPart = partner.split(":::")[0];
-                String username = displayPart;
-                if (displayPart.contains(" (@") && displayPart.endsWith(")")) {
-                    username = displayPart.substring(displayPart.lastIndexOf(" (@") + 3, displayPart.length() - 1);
+                if (isMessageRequestHeaderItem(partner)) {
+                    continue;
                 }
+                String username = extractUsernameFromInboxItem(partner);
                 if (pending.equals(username)) {
                     pendingOpenChatUsername = null;
                     selectInbox(partner);
@@ -2456,18 +2970,25 @@ public class MainController {
         }
 
         if (currentChatUsername == null) {
-            if (!partners.isEmpty()) {
-                selectInbox(partners.get(0));
-            } else {
-                showEmptyChatState(showingArchived);
+            for (String partner : partners) {
+                if (isMessageRequestHeaderItem(partner)) {
+                    continue;
+                }
+                selectInbox(partner);
+                return;
             }
+            showEmptyChatState(showingArchived);
             return;
         }
 
         if (usersList != null) {
             for (int i = 0; i < partners.size(); i++) {
-                String displayPart = partners.get(i).split(":::")[0];
-                if (displayPart.contains("(@" + currentChatUsername + ")")) {
+                String item = partners.get(i);
+                if (isMessageRequestHeaderItem(item)) {
+                    continue;
+                }
+                String username = extractUsernameFromInboxItem(item);
+                if (currentChatUsername.equals(username)) {
                     usersList.getSelectionModel().select(i);
                     return;
                 }

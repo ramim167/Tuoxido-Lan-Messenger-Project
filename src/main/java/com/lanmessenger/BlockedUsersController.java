@@ -1,12 +1,9 @@
 package com.lanmessenger;
 
-import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -16,8 +13,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
-import javafx.util.Duration;
 import org.bson.Document;
 
 import java.util.List;
@@ -138,22 +133,10 @@ public class BlockedUsersController {
     private void onBackToMain(ActionEvent event) {
         try {
             active = false;
-            Stage stage = (Stage) blockedUsersList.getScene().getWindow();
-            Scene scene = stage.getScene();
-            Parent root = new FXMLLoader(MainApp.class.getResource("/main.fxml")).load();
-            root.setOpacity(0);
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = blockedUsersList == null ? null : blockedUsersList.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/main.fxml", cssPath);
         } catch (Exception e) {
             e.printStackTrace();
         }

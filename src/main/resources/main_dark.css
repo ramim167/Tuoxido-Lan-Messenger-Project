@@ -1355,40 +1355,127 @@
     -fx-padding: 12;
 }
 
-.moments-shell {
-    -fx-background-color: rgba(15,23,36,0.94);
-    -fx-background-radius: 24;
-    -fx-border-color: rgba(148,163,184,0.14);
-    -fx-border-radius: 24;
+.profile-bio-area {
+    -fx-background-color: rgba(255,255,255,0.05);
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: rgba(226,232,240,0.10);
     -fx-border-width: 1;
-    -fx-padding: 20;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.35), 24, 0.16, 0, 8);
+    -fx-control-inner-background: transparent;
+    -fx-text-fill: -lm-text;
+    -fx-prompt-text-fill: -lm-muted-2;
+    -fx-padding: 10 12 10 12;
+    -fx-font-size: 12.8px;
+    -fx-font-weight: 700;
+    -fx-pref-height: 74;
+    -fx-min-height: 74;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.profile-bio-area:focused {
+    -fx-border-color: -lm-accent;
+    -fx-border-width: 1.2;
+    -fx-background-color: rgba(255,255,255,0.07);
+}
+
+.profile-bio-area .scroll-pane,
+.profile-bio-area .scroll-pane > .viewport,
+.profile-bio-area .viewport,
+.profile-bio-area .content,
+.profile-bio-area .scroll-pane > .content {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.profile-bio-area .scroll-bar:vertical,
+.profile-bio-area .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
+}
+.profile-bio-view {
+    -fx-text-fill: rgba(226,232,240,0.78);
+    -fx-font-size: 12px;
+    -fx-max-width: 520;
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(226,232,240,0.12);
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 10 12 10 12;
+}
+
+.profile-friend-btn {
+    -fx-background-color: linear-gradient(to right, #0ea5e9, #2563eb);
+    -fx-text-fill: #eaf4ff;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(125,211,252,0.32);
+    -fx-border-width: 1;
+    -fx-padding: 8 14 8 14;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-cursor: hand;
+}
+
+.profile-friend-btn:hover {
+    -fx-background-color: linear-gradient(to right, #38bdf8, #3b82f6);
+}
+
+.profile-friend-btn:disabled {
+    -fx-opacity: 1;
+}
+
+.profile-friend-btn-muted {
+    -fx-background-color: rgba(148,163,184,0.20);
+    -fx-border-color: rgba(148,163,184,0.32);
+    -fx-text-fill: rgba(226,232,240,0.78);
+    -fx-cursor: default;
+}
+
+.profile-friend-btn-blocked {
+    -fx-background-color: rgba(248,113,113,0.20);
+    -fx-border-color: rgba(248,113,113,0.40);
+    -fx-text-fill: #fecaca;
+    -fx-cursor: default;
+}
+
+.moments-shell {
+    -fx-background-color: transparent;
+    -fx-padding: 8 4 6 4;
 }
 
 .moments-hero {
-    -fx-padding: 18 18 18 18;
-    -fx-background-radius: 22;
-    -fx-background-color: linear-gradient(to right, #0f172a, #0891b2);
+    -fx-padding: 6 8 12 8;
+    -fx-border-color: rgba(148,163,184,0.22);
+    -fx-border-width: 0 0 1 0;
 }
 
 .moments-title {
-    -fx-text-fill: white;
-    -fx-font-size: 22px;
-    -fx-font-weight: 900;
+    -fx-text-fill: -lm-text;
+    -fx-font-size: 21px;
+    -fx-font-weight: 800;
 }
 
 .moments-subtitle {
-    -fx-text-fill: rgba(255,255,255,0.70);
+    -fx-text-fill: -lm-muted;
     -fx-font-size: 12px;
 }
 
 .moments-composer {
-    -fx-background-color: rgba(15,23,36,0.92);
-    -fx-background-radius: 20;
-    -fx-border-color: rgba(148,163,184,0.14);
-    -fx-border-radius: 20;
+    -fx-background-color: rgba(15,23,36,0.88);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(148,163,184,0.20);
+    -fx-border-radius: 14;
     -fx-border-width: 1;
-    -fx-padding: 14;
+    -fx-padding: 12;
 }
 
 .moments-avatar {
@@ -1396,12 +1483,12 @@
 }
 
 .moments-input {
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-background-radius: 16;
-    -fx-border-color: rgba(148,163,184,0.16);
-    -fx-border-radius: 16;
+    -fx-background-color: rgba(255,255,255,0.07);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(148,163,184,0.20);
+    -fx-border-radius: 12;
     -fx-border-width: 1;
-    -fx-padding: 10 12 10 12;
+    -fx-padding: 9 11 9 11;
     -fx-font-size: 13px;
     -fx-text-fill: -lm-text;
 }
@@ -1412,7 +1499,7 @@
 
 .moments-attach-btn {
     -fx-background-color: rgba(255,255,255,0.08);
-    -fx-background-radius: 10;
+    -fx-background-radius: 9;
     -fx-padding: 6 8 6 8;
     -fx-min-width: 36;
     -fx-min-height: 36;
@@ -1463,7 +1550,7 @@
 }
 
 .moments-feed {
-    -fx-padding: 2 4 10 4;
+    -fx-padding: 4 2 14 2;
 }
 
 .moments-empty {
@@ -1473,13 +1560,13 @@
 }
 
 .moment-card {
-    -fx-background-color: rgba(15,23,36,0.94);
-    -fx-background-radius: 20;
-    -fx-border-color: rgba(148,163,184,0.14);
-    -fx-border-radius: 20;
+    -fx-background-color: rgba(15,23,36,0.92);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(148,163,184,0.20);
+    -fx-border-radius: 14;
     -fx-border-width: 1;
-    -fx-padding: 14;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.30), 16, 0.16, 0, 4);
+    -fx-padding: 13;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.24), 12, 0.14, 0, 3);
 }
 
 .moment-header {
@@ -1508,8 +1595,8 @@
 }
 
 .moment-action-btn {
-    -fx-background-color: rgba(255,255,255,0.08);
-    -fx-background-radius: 10;
+    -fx-background-color: rgba(148,163,184,0.20);
+    -fx-background-radius: 9;
     -fx-padding: 6 12 6 12;
     -fx-font-weight: 800;
     -fx-text-fill: -lm-text;
@@ -1517,11 +1604,11 @@
 }
 
 .moment-action-btn:hover {
-    -fx-background-color: rgba(255,255,255,0.14);
+    -fx-background-color: rgba(148,163,184,0.30);
 }
 
 .moment-action-btn.liked {
-    -fx-background-color: rgba(8,145,178,0.28);
+    -fx-background-color: rgba(14,116,144,0.32);
     -fx-text-fill: #e2e8f0;
 }
 
@@ -1532,16 +1619,20 @@
 }
 
 .moment-comments {
-    -fx-background-color: rgba(255,255,255,0.06);
-    -fx-background-radius: 12;
-    -fx-border-radius: 12;
+    -fx-background-color: rgba(255,255,255,0.05);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
     -fx-border-color: rgba(148,163,184,0.18);
     -fx-border-width: 1;
-    -fx-padding: 10 12 10 12;
+    -fx-padding: 10 10 10 10;
 }
 
 .moment-comment-row {
     -fx-spacing: 6;
+}
+
+.moment-comment-row-reply {
+    -fx-opacity: 0.98;
 }
 
 .moment-comment-avatar {
@@ -1559,11 +1650,17 @@
     -fx-font-size: 11.5px;
 }
 
+.moment-comment-reply-context {
+    -fx-text-fill: rgba(203,213,225,0.80);
+    -fx-font-size: 10.8px;
+    -fx-font-weight: 700;
+}
+
 .moment-comment-input {
     -fx-background-color: rgba(255,255,255,0.06);
-    -fx-background-radius: 12;
-    -fx-border-color: rgba(148,163,184,0.16);
-    -fx-border-radius: 12;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(148,163,184,0.20);
+    -fx-border-radius: 10;
     -fx-padding: 8 10 8 10;
     -fx-font-size: 12px;
     -fx-text-fill: -lm-text;
@@ -1571,8 +1668,42 @@
 
 .moment-comment-btn {
     -fx-background-color: rgba(255,255,255,0.08);
-    -fx-background-radius: 10;
+    -fx-background-radius: 9;
     -fx-padding: 6 10 6 10;
+    -fx-font-weight: 800;
+    -fx-cursor: hand;
+}
+
+.moment-comment-reply-btn {
+    -fx-background-color: rgba(148,163,184,0.20);
+    -fx-background-radius: 8;
+    -fx-padding: 3 8 3 8;
+    -fx-text-fill: -lm-muted;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 800;
+    -fx-cursor: hand;
+}
+
+.moment-comment-reply-btn:hover {
+    -fx-background-color: rgba(148,163,184,0.32);
+}
+
+.moment-comment-reply-state {
+    -fx-padding: 2 2 0 2;
+}
+
+.moment-comment-replying {
+    -fx-text-fill: rgba(226,232,240,0.84);
+    -fx-font-size: 10.8px;
+    -fx-font-weight: 700;
+}
+
+.moment-comment-reply-clear-btn {
+    -fx-background-color: rgba(148,163,184,0.22);
+    -fx-background-radius: 8;
+    -fx-padding: 2 8 2 8;
+    -fx-text-fill: -lm-muted;
+    -fx-font-size: 10.5px;
     -fx-font-weight: 800;
     -fx-cursor: hand;
 }
@@ -1584,11 +1715,11 @@
 
 .moments-detail-pane {
     -fx-background-color: rgba(15,23,36,0.98);
-    -fx-background-radius: 22;
-    -fx-border-radius: 22;
-    -fx-border-color: rgba(148,163,184,0.18);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(148,163,184,0.22);
     -fx-border-width: 1;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.45), 28, 0.2, 0, 6);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.40), 20, 0.18, 0, 5);
 }
 
 .moments-detail-header {
@@ -1830,4 +1961,329 @@
 .call-end-icon {
     -fx-icon-color: white;
     -fx-icon-size: 23;
+}
+
+/* ===============================
+   2026 UI Refresh (Dark Theme)
+   =============================== */
+.app-root {
+    -fx-background-color:
+            radial-gradient(center 88% 8%, radius 42%, rgba(14,165,233,0.14), rgba(14,165,233,0.0) 68%),
+            linear-gradient(to bottom right, rgba(6,11,20,0.98), rgba(11,18,31,0.97) 45%, rgba(15,24,40,0.97) 100%);
+}
+
+.list-panel {
+    -fx-background-color: linear-gradient(to bottom, rgba(11,20,33,0.96), rgba(13,24,40,0.94));
+    -fx-border-color: rgba(148,163,184,0.18);
+    -fx-border-width: 0 1 0 0;
+}
+
+.chat-panel {
+    -fx-background-color:
+            radial-gradient(center 92% 8%, radius 40%, rgba(14,116,144,0.20), rgba(14,116,144,0.0) 70%),
+            linear-gradient(to bottom, rgba(9,15,26,0.98), rgba(12,20,34,0.96));
+}
+
+.chat-header {
+    -fx-background-color: linear-gradient(to right, rgba(17,27,44,0.94), rgba(16,26,42,0.90));
+    -fx-border-color: rgba(148,163,184,0.16);
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 14 18 14 18;
+}
+
+.users-list .list-cell {
+    -fx-padding: 10 12 10 12;
+}
+
+.users-list .list-cell:hover .inbox-row {
+    -fx-background-color: rgba(14,165,233,0.16);
+    -fx-background-radius: 14;
+}
+
+.inbox-row.inbox-selected {
+    -fx-background-color: rgba(14,165,233,0.24);
+    -fx-border-color: rgba(14,165,233,0.36);
+    -fx-border-width: 1;
+}
+
+.search {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-border-color: rgba(148,163,184,0.18);
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+}
+
+.message-field {
+    -fx-background-color: rgba(255,255,255,0.07);
+    -fx-border-color: rgba(148,163,184,0.20);
+}
+
+.send-btn {
+    -fx-background-color: linear-gradient(to right, #0ea5e9, #2563eb);
+    -fx-text-fill: #eaf4ff;
+    -fx-effect: dropshadow(gaussian, rgba(14,165,233,0.28), 20, 0.22, 0, 4);
+}
+
+.send-btn:hover {
+    -fx-background-color: linear-gradient(to right, #2563eb, #0ea5e9);
+}
+
+.attach-btn,
+.emoji-btn {
+    -fx-background-color: linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
+    -fx-border-color: rgba(148,163,184,0.20);
+}
+
+.chat-scroll,
+.moments-scroll,
+.moments-detail-scroll,
+.friends-scroll,
+.requests-scroll,
+.results-scroll,
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical,
+.scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-padding: 2;
+}
+
+.scroll-bar:vertical .track,
+.scroll-bar:horizontal .track {
+    -fx-background-color: rgba(148,163,184,0.16);
+    -fx-background-radius: 999;
+}
+
+.scroll-bar:vertical .thumb,
+.scroll-bar:horizontal .thumb {
+    -fx-background-color: linear-gradient(to bottom, rgba(203,213,225,0.42), rgba(148,163,184,0.56));
+    -fx-background-radius: 999;
+}
+
+.scroll-bar:vertical .thumb:hover,
+.scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: linear-gradient(to bottom, rgba(226,232,240,0.56), rgba(148,163,184,0.70));
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button,
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-shape: "";
+}
+
+.call-window-root {
+    -fx-padding: 24;
+    -fx-background-color: linear-gradient(to bottom right, rgba(2,8,20,0.84), rgba(3,10,24,0.92));
+}
+
+.call-window-shell {
+    -fx-background-color:
+            radial-gradient(center 86% 8%, radius 42%, rgba(14,165,233,0.20), rgba(14,165,233,0.0) 66%),
+            linear-gradient(to bottom, rgba(11,20,35,0.98), rgba(9,16,29,0.97));
+    -fx-background-radius: 26;
+    -fx-border-radius: 26;
+    -fx-border-color: rgba(148,163,184,0.20);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.58), 40, 0.24, 0, 14);
+}
+
+.call-stage {
+    -fx-background-color: linear-gradient(to bottom, #061126, #0a1b34 54%, #10284a);
+    -fx-background-radius: 22;
+    -fx-padding: 16;
+}
+
+.call-avatar-ring {
+    -fx-background-color: linear-gradient(to bottom right, rgba(226,232,240,0.24), rgba(148,163,184,0.12));
+    -fx-border-color: rgba(125,211,252,0.62);
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 4;
+    -fx-effect: dropshadow(gaussian, rgba(14,165,233,0.34), 20, 0.24, 0, 4);
+}
+
+.call-stage-hint {
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(226,232,240,0.92);
+}
+/* ===============================
+   Polished Moments UI - Dark
+   =============================== */
+
+.moments-shell {
+    -fx-background-color:
+            radial-gradient(center 8% 8%, radius 42%, rgba(14,165,233,0.12), rgba(14,165,233,0.0) 70%),
+            linear-gradient(to bottom right, #060b14, #0f172a);
+    -fx-padding: 18 18 12 18;
+}
+
+.moments-hero {
+    -fx-padding: 14 18 18 18;
+    -fx-background-color: rgba(15,23,42,0.78);
+    -fx-background-radius: 22;
+    -fx-border-color: rgba(148,163,184,0.16);
+    -fx-border-radius: 22;
+    -fx-border-width: 1;
+}
+
+.moments-title {
+    -fx-text-fill: #e5ecf5;
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+}
+
+.moments-subtitle {
+    -fx-text-fill: rgba(226,232,240,0.62);
+    -fx-font-size: 12.5px;
+}
+
+.moments-composer {
+    -fx-background-color: rgba(15,23,42,0.92);
+    -fx-background-radius: 24;
+    -fx-border-color: rgba(148,163,184,0.14);
+    -fx-border-radius: 24;
+    -fx-border-width: 1;
+    -fx-padding: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 22, 0.18, 0, 5);
+}
+
+.moments-input {
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(148,163,184,0.14);
+    -fx-border-radius: 18;
+    -fx-border-width: 1;
+    -fx-padding: 12 14 12 14;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: #e5ecf5;
+    -fx-prompt-text-fill: rgba(226,232,240,0.45);
+}
+
+.moments-attach-btn {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 16;
+    -fx-padding: 10 12 10 12;
+    -fx-cursor: hand;
+}
+
+.moments-attach-btn:hover {
+    -fx-background-color: rgba(14,165,233,0.18);
+}
+
+.moments-feed {
+    -fx-padding: 16 4 20 4;
+    -fx-spacing: 16;
+}
+
+.moment-card {
+    -fx-background-color: rgba(15,23,42,0.96);
+    -fx-background-radius: 24;
+    -fx-border-color: rgba(148,163,184,0.12);
+    -fx-border-radius: 24;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.42), 24, 0.18, 0, 6);
+}
+
+.moment-card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(14,165,233,0.14), 28, 0.22, 0, 7);
+}
+
+.moment-name {
+    -fx-text-fill: #e5ecf5;
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+}
+
+.moment-time {
+    -fx-text-fill: rgba(226,232,240,0.52);
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 600;
+}
+
+.moment-text {
+    -fx-text-fill: rgba(226,232,240,0.88);
+    -fx-font-size: 13.5px;
+    -fx-line-spacing: 1.4;
+}
+
+.moment-image {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 24, 0.24, 0, 5);
+}
+
+.moment-action-btn {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-radius: 999;
+    -fx-padding: 8 15 8 15;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #e5ecf5;
+    -fx-cursor: hand;
+}
+
+.moment-action-btn:hover {
+    -fx-background-color: rgba(14,165,233,0.18);
+    -fx-text-fill: #7dd3fc;
+}
+
+.moment-action-btn.liked {
+    -fx-background-color: rgba(14,165,233,0.20);
+    -fx-text-fill: #7dd3fc;
+}
+
+.moment-meta {
+    -fx-text-fill: rgba(226,232,240,0.58);
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 700;
+}
+
+.profile-bio-area {
+    -fx-background-color: rgba(255,255,255,0.06);
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(226,232,240,0.10);
+    -fx-border-width: 1;
+    -fx-control-inner-background: transparent;
+    -fx-text-fill: -lm-text;
+    -fx-prompt-text-fill: -lm-muted-2;
+    -fx-padding: 12 14 12 14;
+    -fx-font-size: 12.8px;
+    -fx-font-weight: 700;
+    -fx-pref-height: 84;
+    -fx-min-height: 84;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.profile-bio-area:focused {
+    -fx-border-color: -lm-accent;
+    -fx-border-width: 1.2;
+    -fx-background-color: rgba(255,255,255,0.08);
+}
+
+.profile-bio-area .scroll-pane,
+.profile-bio-area .scroll-pane > .viewport,
+.profile-bio-area .viewport,
+.profile-bio-area .content,
+.profile-bio-area .scroll-pane > .content {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.profile-bio-area .scroll-bar:vertical,
+.profile-bio-area .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
 }

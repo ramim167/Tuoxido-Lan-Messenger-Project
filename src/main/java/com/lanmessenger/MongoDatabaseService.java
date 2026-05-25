@@ -6,6 +6,10 @@ import com.mongodb.client.MongoDatabase;
 
 public class MongoDatabaseService {
 
+    private static final String GREEN = "\u001B[32m";
+    private static final String RED = "\u001B[31m";
+    private static final String RESET = "\u001B[0m";
+
     private static MongoClient mongoClient;
     private static MongoDatabase database;
 
@@ -14,12 +18,14 @@ public class MongoDatabaseService {
             if (mongoClient == null) {
                 mongoClient = MongoClients.create(AppConfig.getMongoConnectionString());
                 database = mongoClient.getDatabase(AppConfig.getMongoDatabaseName());
-                System.out.println("✅ Successfully connected to MongoDB Atlas!");
+
+                System.out.println(GREEN + "✅ Successfully connected to MongoDB Atlas!" + RESET);
 
                 MessageService.setupAutoDelete();
+                MomentsService.setupAutoDelete();
             }
         } catch (Exception e) {
-            System.err.println("❌ Failed to connect to MongoDB: " + e.getMessage());
+            System.err.println(RED + "❌ Failed to connect to MongoDB: " + e.getMessage() + RESET);
         }
     }
 

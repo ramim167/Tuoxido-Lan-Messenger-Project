@@ -8,6 +8,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -25,13 +26,16 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.Callable;
 
 public class ProfileController {
+    private static final int MAX_BIO_WORDS = 150;
 
     @FXML private ImageView profileImageView;
     @FXML private TextField nameField;
     @FXML private TextField usernameField;
+    @FXML private TextArea bioField;
     @FXML private DatePicker birthdatePicker;
     @FXML private Label statusLabel;
     @FXML private Button saveBtn;
@@ -44,20 +48,16 @@ public class ProfileController {
     public void initialize() {
         SceneNavigator.playEntrance(cardBox);
         applyRoundProfileImage();
+        configureBioField();
         populateProfile(Session.getProfile());
+        refreshProfileHeader();
         loadMyMoments();
     }
 
     @FXML
     public void onBack(ActionEvent event) {
         try {
-            Scene scene = nameField.getScene();
-            if (scene == null) {
-                return;
-            }
-
-            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
-            SceneNavigator.swapRootWithFade(scene, "/main.fxml", cssPath);
+            SceneNavigator.swapRootWithMainThemeInstant(event, nameField, "/main.fxml");
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -90,8 +90,13 @@ public class ProfileController {
 
         uploadTask.setOnSucceeded(e -> {
             uploadedImageUrl = uploadTask.getValue();
-            setBusyStatus("Picture uploaded successfully.", "#16A34A");
-            saveBtn.setDisable(false);
+            if (uploadedImageUrl == null || uploadedImageUrl.isBlank()) {
+                setBusyStatus("Upload completed, but image URL is missing.", "#DC2626");
+                saveBtn.setDisable(false);
+                return;
+            }
+            applyProfileImage(uploadedImageUrl);
+            persistProfilePicture(uploadedImageUrl);
         });
 
         uploadTask.setOnFailed(e -> {
@@ -114,6 +119,11 @@ public class ProfileController {
 
         String name = nameField.getText() == null ? "" : nameField.getText().trim();
         String newUsername = usernameField.getText() == null ? "" : usernameField.getText().trim();
+        String rawBio = bioField == null ? "" : bioField.getText();
+        String bio = normalizeBio(rawBio);
+        if (bioField != null && !bio.equals(bioField.getText())) {
+            bioField.setText(bio);
+        }
         String birthdateStr = birthdatePicker.getValue() == null ? "" : birthdatePicker.getValue().toString();
 
         if (!newUsername.matches("^[A-Za-z0-9_]+$")) {
@@ -123,13 +133,13 @@ public class ProfileController {
 
         boolean usernameChanged = !newUsername.equals(currentProfile.username);
         if (usernameChanged) {
-            showUsernameChangeConfirmation(currentProfile, name, newUsername, birthdateStr);
+            showUsernameChangeConfirmation(currentProfile, name, newUsername, birthdateStr, bio);
         } else {
-            performSave(currentProfile, name, newUsername, birthdateStr, false);
+            performSave(currentProfile, name, newUsername, birthdateStr, bio, false);
         }
     }
 
-    private void showUsernameChangeConfirmation(UserProfile profile, String name, String newUsername, String birthdateStr) {
+    private void showUsernameChangeConfirmation(UserProfile profile, String name, String newUsername, String birthdateStr, String bio) {
         ThemedDialogs.showConfirmation(
                 getOwnerWindow(),
                 "Profile Update",
@@ -138,11 +148,11 @@ public class ProfileController {
                 "Cancel",
                 "Update and\nLog Out",
                 true,
-                () -> performSave(profile, name, newUsername, birthdateStr, true)
+                () -> performSave(profile, name, newUsername, birthdateStr, bio, true)
         );
     }
 
-    private void performSave(UserProfile currentProfile, String name, String newUsername, String birthdateStr, boolean usernameChanged) {
+    private void performSave(UserProfile currentProfile, String name, String newUsername, String birthdateStr, String bio, boolean usernameChanged) {
         LocalDate selectedBirthdate = birthdatePicker.getValue();
         String finalPic = resolveProfilePicture(currentProfile);
         UserProfile[] refreshedHolder = new UserProfile[1];
@@ -158,7 +168,7 @@ public class ProfileController {
                     return false;
                 }
 
-                boolean ok = UserService.updateProfileInfo(currentProfile.email, newUsername, name, birthdateStr, finalPic);
+                boolean ok = UserService.updateProfileInfo(currentProfile.email, newUsername, name, birthdateStr, finalPic, bio);
                 if (!ok) {
                     updateMessage("Could not update the profile.");
                     return false;
@@ -170,11 +180,12 @@ public class ProfileController {
 
                 UserProfile refreshed = UserService.loadRequiredProfile(currentProfile.localId, currentProfile.email);
                 if (refreshed == null) {
-                    refreshed = new UserProfile(currentProfile.localId, name, currentProfile.email, newUsername, selectedBirthdate, finalPic);
+                    refreshed = new UserProfile(currentProfile.localId, name, currentProfile.email, newUsername, selectedBirthdate, finalPic, bio);
                     UserProfileStore.saveIdentity(currentProfile.localId, name, currentProfile.email);
                     UserProfileStore.updateUsername(currentProfile.localId, newUsername);
                     UserProfileStore.updateBirthdate(currentProfile.localId, selectedBirthdate);
                     UserProfileStore.updateProfilePic(currentProfile.localId, finalPic);
+                    UserProfileStore.updateBio(currentProfile.localId, bio);
                 }
                 refreshedHolder[0] = refreshed;
                 return true;
@@ -281,7 +292,8 @@ public class ProfileController {
         }
 
         if (imageUrl != null && !imageUrl.isBlank()) {
-            ImageView imageView = new ImageView(new Image(imageUrl, true));
+            String displayable = ImgBbService.toDisplayableUrl(imageUrl);
+            ImageView imageView = new ImageView(new Image(displayable == null ? imageUrl : displayable, true));
             imageView.setPreserveRatio(true);
             imageView.setFitWidth(520);
             imageView.setSmooth(true);
@@ -341,7 +353,7 @@ public class ProfileController {
                 "Could not update the moment picture.",
                 () -> {
                     byte[] bytes = Files.readAllBytes(file.toPath());
-                    String imageUrl = ImgBbService.uploadImage(bytes).imageUrl;
+                    String imageUrl = ImgBbService.uploadImage(bytes, 7 * 24 * 60 * 60).imageUrl;
                     return MomentsService.updateMomentImage(momentId, imageUrl);
                 }
         );
@@ -404,21 +416,97 @@ public class ProfileController {
 
         nameField.setText(profile.name);
         usernameField.setText(profile.username);
+        if (bioField != null) {
+            bioField.setText(normalizeBio(profile.bio));
+        }
         birthdatePicker.setValue(profile.birthdate);
         uploadedImageUrl = profile.profilePic;
         applyProfileImage(profile.profilePic);
     }
 
-    private void applyProfileImage(String imageUrl) {
-        applyRoundProfileImage();
-        if (imageUrl != null && imageUrl.startsWith("http")) {
-            profileImageView.setImage(new Image(imageUrl, true));
+    private void configureBioField() {
+        if (bioField == null) {
             return;
         }
 
+        bioField.setWrapText(true);
+
+        bioField.textProperty().addListener((obs, oldValue, newValue) -> {
+            if (countBioWords(newValue) <= MAX_BIO_WORDS) {
+                return;
+            }
+
+            String limited = limitBioToWords(newValue, MAX_BIO_WORDS);
+            bioField.setText(limited);
+            bioField.positionCaret(limited.length());
+        });
+    }
+
+    private int countBioWords(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return 0;
+        }
+        return text.trim().split("\\s+").length;
+    }
+
+    private String limitBioToWords(String text, int maxWords) {
+        if (text == null || text.trim().isEmpty()) {
+            return "";
+        }
+
+        String[] words = text.trim().split("\\s+");
+        StringJoiner joiner = new StringJoiner(" ");
+
+        for (int i = 0; i < Math.min(words.length, maxWords); i++) {
+            joiner.add(words[i]);
+        }
+
+        return joiner.toString();
+    }
+
+    private String normalizeBio(String bio) {
+        if (bio == null || bio.isBlank()) {
+            return "";
+        }
+        String[] words = bio.trim().split("\\s+");
+        int limit = Math.min(words.length, MAX_BIO_WORDS);
+        StringJoiner joiner = new StringJoiner(" ");
+        for (int i = 0; i < limit; i++) {
+            joiner.add(words[i]);
+        }
+        return joiner.toString();
+    }
+
+    private void applyProfileImage(String imageUrl) {
+        applyRoundProfileImage();
+        Image fallback = loadDefaultAvatarImage();
+        String displayableUrl = ImgBbService.toDisplayableUrl(imageUrl);
+        if (displayableUrl != null && displayableUrl.startsWith("http")) {
+            try {
+                Image remote = new Image(displayableUrl, true);
+                remote.errorProperty().addListener((obs, oldVal, hasError) -> {
+                    if (Boolean.TRUE.equals(hasError) && fallback != null) {
+                        profileImageView.setImage(fallback);
+                    }
+                });
+                profileImageView.setImage(remote);
+                if (remote.isError() && fallback != null) {
+                    profileImageView.setImage(fallback);
+                }
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+        if (fallback != null) {
+            profileImageView.setImage(fallback);
+        }
+    }
+
+    private Image loadDefaultAvatarImage() {
         try {
-            profileImageView.setImage(new Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
+            return new Image(getClass().getResourceAsStream("/assets/default_avatar.png"));
         } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -437,6 +525,60 @@ public class ProfileController {
         return profile == null ? "default_avatar.png" : profile.profilePic;
     }
 
+    private void persistProfilePicture(String imageUrl) {
+        UserProfile current = Session.getProfile();
+        if (current == null) {
+            setBusyStatus("Picture uploaded. Please save profile to apply.", "#2563EB");
+            saveBtn.setDisable(false);
+            return;
+        }
+
+        Task<Boolean> persistTask = new Task<>() {
+            @Override
+            protected Boolean call() {
+                String birthdate = current.birthdate == null ? "" : current.birthdate.toString();
+                boolean ok = UserService.updateProfileInfo(
+                        current.email,
+                        current.username,
+                        current.name,
+                        birthdate,
+                        imageUrl,
+                        current.bio
+                );
+                if (!ok) {
+                    return false;
+                }
+                UserProfile refreshed = UserService.loadRequiredProfile(current.localId, current.email);
+                if (refreshed != null) {
+                    Session.setProfile(refreshed);
+                }
+                MainController.invalidateCachedUserAvatar(current.username);
+                return true;
+            }
+        };
+
+        persistTask.setOnSucceeded(ev -> {
+            saveBtn.setDisable(false);
+            if (persistTask.getValue()) {
+                setBusyStatus("Picture uploaded and saved.", "#16A34A");
+                UserProfile active = Session.getProfile();
+                if (active != null) {
+                    populateProfile(active);
+                }
+            } else {
+                setBusyStatus("Picture uploaded, but save failed. Press Save.", "#DC2626");
+            }
+        });
+        persistTask.setOnFailed(ev -> {
+            saveBtn.setDisable(false);
+            setBusyStatus("Picture uploaded, but save failed. Press Save.", "#DC2626");
+        });
+
+        Thread persistThread = new Thread(persistTask, "profile-picture-save");
+        persistThread.setDaemon(true);
+        persistThread.start();
+    }
+
     private String getMomentId(Document moment) {
         return moment != null && moment.getObjectId("_id") != null ? moment.getObjectId("_id").toString() : null;
     }
@@ -451,6 +593,31 @@ public class ProfileController {
         }
         statusLabel.setText(text == null ? "" : text);
         statusLabel.setStyle("-fx-text-fill: " + color + ";");
+    }
+
+    private void refreshProfileHeader() {
+        UserProfile current = Session.getProfile();
+        if (current == null || current.email == null || current.email.isBlank()) {
+            return;
+        }
+
+        Task<UserProfile> task = new Task<>() {
+            @Override
+            protected UserProfile call() {
+                return UserService.loadRequiredProfile(current.localId, current.email);
+            }
+        };
+        task.setOnSucceeded(e -> {
+            UserProfile latest = task.getValue();
+            if (latest != null) {
+                Session.setProfile(latest);
+                populateProfile(latest);
+            }
+        });
+
+        Thread thread = new Thread(task, "refresh-profile-header");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private String formatRelativeTime(long timestamp) {

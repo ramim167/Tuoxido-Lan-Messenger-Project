@@ -1,5 +1,6 @@
 package com.lanmessenger;
 
+import javafx.application.Platform;
 import javafx.scene.Scene;
 
 public final class ThemeManager {
@@ -15,5 +16,8 @@ public final class ThemeManager {
         if (res != null) {
             scene.getStylesheets().add(res.toExternalForm());
         }
+
+        // Ensure smooth scrolling behavior is consistently applied after theme/root updates.
+        Platform.runLater(() -> SmoothScrollUtil.applyToScene(scene));
     }
 }

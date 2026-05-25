@@ -1,7 +1,9 @@
 package com.lanmessenger;
 
 import com.mongodb.client.model.Filters;
+import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -17,6 +19,9 @@ import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.bson.Document;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CallController {
 
@@ -57,6 +62,10 @@ public class CallController {
     private volatile boolean isCallEnded = false;
     private volatile boolean isWindowOpen = true;
     private Timeline callTimerTimeline;
+    private Timeline ringingPulseTimeline;
+    private static final Map<String, String> USER_PROFILE_PIC_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Image> AVATAR_IMAGE_CACHE = new ConcurrentHashMap<>();
+    private static volatile Image fallbackAvatarImage;
 
     public void setupCall(String partner, String type, boolean caller, String ip) {
         partnerUsername = partner;
@@ -77,6 +86,10 @@ public class CallController {
         camBtn.setManaged(isVideo);
         remoteVideo.setVisible(isVideo);
         remoteVideo.setManaged(isVideo);
+        if (avatarBox != null) {
+            avatarBox.setVisible(true);
+            avatarBox.setManaged(true);
+        }
 
         incomingActions.setVisible(!caller);
         incomingActions.setManaged(!caller);
@@ -87,6 +100,8 @@ public class CallController {
             callTimerLabel.setManaged(false);
             callTimerLabel.setText("00:00");
         }
+
+        startRingingPulse();
 
         if (caller) {
             startMedia();
@@ -178,6 +193,7 @@ public class CallController {
         }, "end-call").start();
 
         stopCallTimer();
+        stopRingingPulse();
         stopMedia(reason);
 
         Platform.runLater(() -> {
@@ -282,20 +298,97 @@ public class CallController {
     }
 
     private void loadAvatar(String username) {
-        try {
-            Document doc = UserService.getUserByUsername(username);
-            if (doc != null) {
-                String pic = doc.getString("profilePic");
-                if (pic != null && pic.startsWith("http")) {
-                    avatarImage.setImage(new Image(pic, true));
+        Image fallback = getFallbackAvatarImage();
+        if (fallback != null) {
+            avatarImage.setImage(fallback);
+        }
+
+        if (username == null || username.isBlank()) {
+            return;
+        }
+
+        String cachedProfilePic = USER_PROFILE_PIC_CACHE.get(username);
+        if (cachedProfilePic != null && !cachedProfilePic.isBlank()) {
+            Image cached = getCachedAvatarImage(cachedProfilePic);
+            if (cached != null) {
+                avatarImage.setImage(cached);
+            }
+        }
+
+        Thread thread = new Thread(() -> {
+            try {
+                Document doc = UserService.getUserByUsername(username);
+                if (doc == null) {
                     return;
                 }
+
+                String profilePic = doc.getString("profilePic");
+                if (profilePic == null || profilePic.isBlank()) {
+                    return;
+                }
+                USER_PROFILE_PIC_CACHE.put(username, profilePic);
+
+                Image resolved = getCachedAvatarImage(profilePic);
+                if (resolved == null) {
+                    return;
+                }
+                Platform.runLater(() -> {
+                    if (!isWindowOpen || partnerUsername == null || !partnerUsername.equals(username)) {
+                        return;
+                    }
+                    avatarImage.setImage(resolved);
+                });
+            } catch (Exception ignored) {
             }
-        } catch (Exception ignored) {
+        }, "call-avatar-load-" + username);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private Image getCachedAvatarImage(String rawUrl) {
+        String displayableUrl = ImgBbService.toDisplayableUrl(rawUrl);
+        if (displayableUrl == null) {
+            return null;
         }
-        try {
-            avatarImage.setImage(new Image(MainApp.class.getResourceAsStream("/assets/logo_alt.png")));
-        } catch (Exception ignored) {
+        String key = displayableUrl.trim();
+        if (key.isEmpty() || !key.startsWith("http")) {
+            return null;
+        }
+
+        return AVATAR_IMAGE_CACHE.compute(key, (k, existing) -> {
+            if (existing != null && !existing.isError()) {
+                return existing;
+            }
+            Image fresh = new Image(k, true);
+            fresh.errorProperty().addListener((obs, oldVal, hasError) -> {
+                if (Boolean.TRUE.equals(hasError)) {
+                    AVATAR_IMAGE_CACHE.remove(k, fresh);
+                }
+            });
+            return fresh;
+        });
+    }
+
+    private Image getFallbackAvatarImage() {
+        Image cached = fallbackAvatarImage;
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (CallController.class) {
+            if (fallbackAvatarImage != null) {
+                return fallbackAvatarImage;
+            }
+            try {
+                fallbackAvatarImage = new Image(MainApp.class.getResourceAsStream("/assets/default_avatar.png"));
+            } catch (Exception ignored) {
+            }
+            if (fallbackAvatarImage == null) {
+                try {
+                    fallbackAvatarImage = new Image(MainApp.class.getResourceAsStream("/assets/logo_alt.png"));
+                } catch (Exception ignored) {
+                }
+            }
+            return fallbackAvatarImage;
         }
     }
 
@@ -307,6 +400,43 @@ public class CallController {
         avatarImage.setClip(new Circle(radius, radius, radius));
     }
 
+    private void startRingingPulse() {
+        if (avatarBox == null || ringingPulseTimeline != null) {
+            return;
+        }
+        avatarBox.setScaleX(1.0);
+        avatarBox.setScaleY(1.0);
+        ringingPulseTimeline = new Timeline(
+                new KeyFrame(
+                        Duration.ZERO,
+                        new KeyValue(avatarBox.scaleXProperty(), 1.0, Interpolator.EASE_BOTH),
+                        new KeyValue(avatarBox.scaleYProperty(), 1.0, Interpolator.EASE_BOTH),
+                        new KeyValue(avatarBox.opacityProperty(), 0.94, Interpolator.EASE_BOTH)
+                ),
+                new KeyFrame(
+                        Duration.millis(780),
+                        new KeyValue(avatarBox.scaleXProperty(), 1.035, Interpolator.EASE_BOTH),
+                        new KeyValue(avatarBox.scaleYProperty(), 1.035, Interpolator.EASE_BOTH),
+                        new KeyValue(avatarBox.opacityProperty(), 1.0, Interpolator.EASE_BOTH)
+                )
+        );
+        ringingPulseTimeline.setAutoReverse(true);
+        ringingPulseTimeline.setCycleCount(Timeline.INDEFINITE);
+        ringingPulseTimeline.play();
+    }
+
+    private void stopRingingPulse() {
+        if (ringingPulseTimeline != null) {
+            ringingPulseTimeline.stop();
+            ringingPulseTimeline = null;
+        }
+        if (avatarBox != null) {
+            avatarBox.setScaleX(1.0);
+            avatarBox.setScaleY(1.0);
+            avatarBox.setOpacity(1.0);
+        }
+    }
+
     private void markAudioConnected() {
         if (!callAnswered) {
             callAnswered = true;
@@ -315,6 +445,7 @@ public class CallController {
         Platform.runLater(() -> {
             updateCallStatusText("Connected");
             startCallTimer();
+            stopRingingPulse();
             if (!"video".equalsIgnoreCase(callType)) {
                 avatarBox.setVisible(true);
                 avatarBox.setManaged(true);
@@ -330,6 +461,7 @@ public class CallController {
         Platform.runLater(() -> {
             updateCallStatusText("Connected");
             startCallTimer();
+            stopRingingPulse();
             remoteVideo.setVisible(true);
             remoteVideo.setManaged(true);
             avatarBox.setVisible(false);

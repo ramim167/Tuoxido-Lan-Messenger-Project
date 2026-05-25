@@ -302,6 +302,7 @@ public class MainApp extends Application {
                 if (MainApp.class.getResource("/login.css") != null) {
                     scene.getStylesheets().add(MainApp.class.getResource("/login.css").toExternalForm());
                 }
+                SmoothScrollUtil.applyToScene(scene);
 
                 if (wasMaximized) {
                     stage.setMaximized(true);

@@ -1,16 +1,13 @@
 package com.lanmessenger;
 
 import javafx.animation.Animation;
-import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -25,7 +22,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
-import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
 import org.bson.Document;
@@ -42,9 +38,13 @@ import java.io.File;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -52,6 +52,10 @@ public class MomentsController {
 
     private static final int MAX_TEXT = 300;
     private static final int MAX_IMAGE_BYTES = 800 * 1024;
+    private static final int FEED_PAGE_SIZE = 16;
+    private static final double FEED_LOAD_MORE_THRESHOLD = 0.78;
+    private static final int COMMENT_MAX_TEXT = 200;
+    private static final double COMMENT_REPLY_INDENT = 18;
     private static final Map<String, Image> IMAGE_CACHE = new ConcurrentHashMap<>();
 
     @FXML private ImageView myAvatar;
@@ -67,21 +71,70 @@ public class MomentsController {
 
     @FXML
     private ScrollPane momentsScrollPane;
+    @FXML
+    private ScrollPane momentsDetailScrollPane;
 
     private File selectedImageFile;
     private Timeline refreshTimeline;
     private boolean detailOpen = false;
     private String currentDetailMomentId;
+    private volatile boolean loadingInitialFeed = false;
+    private volatile boolean loadingMoreFeed = false;
+    private volatile boolean hasMoreFeed = true;
+    private volatile long oldestFeedTimestamp = Long.MAX_VALUE;
+    private volatile String oldestFeedMomentId;
+    private volatile String newestFeedMomentId;
+    private volatile List<String> feedFriendUsernames = List.of();
+    private final List<Document> loadedFeed = new ArrayList<>();
+    private final Set<String> loadedFeedIds = ConcurrentHashMap.newKeySet();
+    private final Map<String, Document> userDocCache = new ConcurrentHashMap<>();
+    private final Set<String> missingUsernames = ConcurrentHashMap.newKeySet();
+
+    private static final class FeedLoadResult {
+        private final List<Document> page;
+        private final List<String> friendUsernames;
+        private final Map<String, Document> usersByUsername;
+
+        private FeedLoadResult(List<Document> page, List<String> friendUsernames, Map<String, Document> usersByUsername) {
+            this.page = page;
+            this.friendUsernames = friendUsernames;
+            this.usersByUsername = usersByUsername;
+        }
+    }
+
+    private static final class FeedRefreshSnapshot {
+        private final List<String> friendUsernames;
+        private final String latestMomentId;
+
+        private FeedRefreshSnapshot(List<String> friendUsernames, String latestMomentId) {
+            this.friendUsernames = friendUsernames;
+            this.latestMomentId = latestMomentId;
+        }
+    }
+
+    private static final class MomentDetailPayload {
+        private final Document moment;
+        private final Map<String, Document> usersByUsername;
+
+        private MomentDetailPayload(Document moment, Map<String, Document> usersByUsername) {
+            this.moment = moment;
+            this.usersByUsername = usersByUsername;
+        }
+    }
 
     @FXML
     public void initialize() {
         setupComposer();
-        loadFeed();
         setupDetailOverlay();
-        startRefreshLoop();
         if (momentsScrollPane != null) {
-            SmoothScrollUtil.apply(momentsScrollPane);
+            SmoothScrollUtil.applyFast(momentsScrollPane);
         }
+        if (momentsDetailScrollPane != null) {
+            SmoothScrollUtil.applyFast(momentsDetailScrollPane);
+        }
+        setupFeedScrollListener();
+        loadFeed();
+        startRefreshLoop();
     }
 
     private void setupComposer() {
@@ -111,28 +164,34 @@ public class MomentsController {
     }
 
     private void startRefreshLoop() {
-        refreshTimeline = new Timeline(new KeyFrame(Duration.seconds(3), e -> {
-            if (!detailOpen) loadFeed();
+        refreshTimeline = new Timeline(new KeyFrame(Duration.seconds(8), e -> {
+            if (!detailOpen) {
+                refreshFeedIfNeeded();
+            }
         }));
         refreshTimeline.setCycleCount(Animation.INDEFINITE);
         refreshTimeline.play();
+    }
+
+    private void setupFeedScrollListener() {
+        if (momentsScrollPane == null) {
+            return;
+        }
+        momentsScrollPane.vvalueProperty().addListener((obs, oldV, newV) -> {
+            if (newV == null) {
+                return;
+            }
+            if (newV.doubleValue() >= FEED_LOAD_MORE_THRESHOLD) {
+                loadMoreFeed();
+            }
+        });
     }
 
     private void updateAvatar() {
         if (myAvatar == null) return;
         UserProfile me = Session.getProfile();
         String url = (me != null) ? me.profilePic : null;
-        Image img = null;
-        if (url != null && url.startsWith("http")) {
-            img = getCachedImage(url);
-        }
-        if (img == null) {
-            try {
-                img = new Image(getClass().getResourceAsStream("/assets/default_avatar.png"));
-            } catch (Exception ignored) { }
-        }
-        if (img != null) myAvatar.setImage(img);
-        applyCircleClip(myAvatar, 18);
+        setAvatarImage(myAvatar, url, 18);
     }
 
     private void updateCharCount() {
@@ -150,15 +209,85 @@ public class MomentsController {
 
     private Image getCachedImage(String url) {
         if (url == null) return null;
-        String key = url.trim();
-        if (key.isEmpty()) return null;
-        return IMAGE_CACHE.computeIfAbsent(key, u -> new Image(u, true));
+        String key = ImgBbService.toDisplayableUrl(url);
+        if (key == null) return null;
+        key = key.trim();
+        if (key.isEmpty() || !key.startsWith("http")) return null;
+        return IMAGE_CACHE.compute(key, (k, existing) -> {
+            if (existing != null && !existing.isError()) {
+                return existing;
+            }
+            Image fresh = new Image(k, true);
+            fresh.errorProperty().addListener((obs, oldVal, hasError) -> {
+                if (Boolean.TRUE.equals(hasError)) {
+                    IMAGE_CACHE.remove(k, fresh);
+                }
+            });
+            return fresh;
+        });
     }
 
     private void applyCircleClip(ImageView view, double radius) {
         if (view == null) return;
         Circle clip = new Circle(radius, radius, radius);
         view.setClip(clip);
+    }
+
+    private Image getDefaultAvatarImage() {
+        try {
+            return new Image(getClass().getResourceAsStream("/assets/default_avatar.png"));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void setAvatarImage(ImageView avatarView, String profilePicUrl, double radius) {
+        if (avatarView == null) {
+            return;
+        }
+
+        Image fallback = getDefaultAvatarImage();
+        if (fallback != null) {
+            avatarView.setImage(fallback);
+        }
+
+        Image remote = getCachedImage(profilePicUrl);
+        if (remote != null) {
+            avatarView.setImage(remote);
+            if (remote.isError() && fallback != null) {
+                avatarView.setImage(fallback);
+            } else if (fallback != null) {
+                remote.errorProperty().addListener((obs, oldVal, hasError) -> {
+                    if (Boolean.TRUE.equals(hasError)) {
+                        Platform.runLater(() -> avatarView.setImage(fallback));
+                    }
+                });
+            }
+        }
+
+        applyCircleClip(avatarView, radius);
+    }
+
+    private Document getUserDocCached(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+
+        Document cached = userDocCache.get(username);
+        if (cached != null) {
+            return cached;
+        }
+        if (missingUsernames.contains(username)) {
+            return null;
+        }
+
+        Document fetched = UserService.getUserByUsername(username);
+        if (fetched != null) {
+            userDocCache.put(username, fetched);
+            return fetched;
+        }
+        missingUsernames.add(username);
+        return null;
     }
 
     @FXML
@@ -213,7 +342,7 @@ public class MomentsController {
                 String imageUrl = null;
                 if (imageFile != null) {
                     byte[] data = compressImageToLimit(imageFile, MAX_IMAGE_BYTES);
-                    imageUrl = ImgBbService.uploadImage(data).imageUrl;
+                    imageUrl = ImgBbService.uploadImage(data, 7 * 24 * 60 * 60).imageUrl;
                 }
                 MomentsService.createMoment(myUsername, finalText, imageUrl);
                 return null;
@@ -231,38 +360,272 @@ public class MomentsController {
     }
 
     private void loadFeed() {
-        UserProfile me = Session.getProfile();
-        if (me == null) return;
+        loadFeedPage(true);
+    }
 
-        Task<List<Document>> task = new Task<>() {
+    private void loadMoreFeed() {
+        if (detailOpen) {
+            return;
+        }
+        loadFeedPage(false);
+    }
+
+    private void loadFeedPage(boolean reset) {
+        UserProfile me = Session.getProfile();
+        if (me == null) {
+            return;
+        }
+
+        if (reset) {
+            if (loadingInitialFeed) {
+                return;
+            }
+            loadingInitialFeed = true;
+        } else {
+            if (loadingMoreFeed || loadingInitialFeed || !hasMoreFeed) {
+                return;
+            }
+            loadingMoreFeed = true;
+        }
+
+        final Long beforeTimestamp = reset || oldestFeedTimestamp == Long.MAX_VALUE ? null : oldestFeedTimestamp;
+        final String beforeMomentId = reset ? null : oldestFeedMomentId;
+        final List<String> friendSnapshot = reset ? List.of() : feedFriendUsernames;
+
+        Task<FeedLoadResult> task = new Task<>() {
             @Override
-            protected List<Document> call() {
-                List<String> friendUsernames = new ArrayList<>();
-                List<Document> friends = UserService.getMyFriendsList(me.username);
-                for (Document doc : friends) {
-                    String u = doc.getString("username");
-                    if (u != null) friendUsernames.add(u);
-                }
-                return MomentsService.getFeed(me.username, friendUsernames);
+            protected FeedLoadResult call() {
+                List<String> friends = (reset || friendSnapshot == null || friendSnapshot.isEmpty())
+                        ? resolveFriendUsernames(me.username)
+                        : new ArrayList<>(friendSnapshot);
+                List<Document> page = MomentsService.getFeedPage(
+                        me.username,
+                        friends,
+                        FEED_PAGE_SIZE,
+                        beforeTimestamp,
+                        beforeMomentId
+                );
+                Map<String, Document> usersByUsername = UserService.getUsersByUsernames(collectMomentUsernames(page));
+                return new FeedLoadResult(page, friends, usersByUsername);
             }
         };
 
-        task.setOnSucceeded(ev -> Platform.runLater(() -> renderFeed(task.getValue())));
-        new Thread(task, "moments-feed").start();
+        task.setOnSucceeded(ev -> {
+            FeedLoadResult result = task.getValue();
+            if (result != null) {
+                mergeUserDocsIntoCache(result.usersByUsername);
+                if (reset) {
+                    feedFriendUsernames = result.friendUsernames == null ? List.of() : List.copyOf(result.friendUsernames);
+                    renderFeedReset(result.page);
+                } else {
+                    appendFeedPage(result.page);
+                }
+            }
+            if (reset) {
+                loadingInitialFeed = false;
+            } else {
+                loadingMoreFeed = false;
+            }
+        });
+
+        task.setOnFailed(ev -> {
+            if (reset) {
+                loadingInitialFeed = false;
+            } else {
+                loadingMoreFeed = false;
+            }
+        });
+
+        Thread thread = new Thread(task, reset ? "moments-feed-initial" : "moments-feed-more");
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    private void renderFeed(List<Document> feed) {
-        if (momentsFeed == null) return;
+    private List<String> resolveFriendUsernames(String myUsername) {
+        List<String> usernames = new ArrayList<>();
+        if (myUsername == null || myUsername.isBlank()) {
+            return usernames;
+        }
+        List<Document> friends = UserService.getMyFriendsListOptimized(myUsername);
+        for (Document doc : friends) {
+            String username = doc.getString("username");
+            if (username != null && !username.isBlank()) {
+                usernames.add(username);
+            }
+        }
+        return usernames;
+    }
+
+    private Set<String> collectMomentUsernames(List<Document> moments) {
+        Set<String> usernames = new LinkedHashSet<>();
+        if (moments == null) {
+            return usernames;
+        }
+        for (Document moment : moments) {
+            String username = moment.getString("username");
+            if (username != null && !username.isBlank()) {
+                usernames.add(username);
+            }
+        }
+        return usernames;
+    }
+
+    private void mergeUserDocsIntoCache(Map<String, Document> usersByUsername) {
+        if (usersByUsername == null || usersByUsername.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Document> entry : usersByUsername.entrySet()) {
+            String username = entry.getKey();
+            Document doc = entry.getValue();
+            if (username == null || username.isBlank() || doc == null) {
+                continue;
+            }
+            userDocCache.put(username, doc);
+            missingUsernames.remove(username);
+        }
+    }
+
+    private void renderFeedReset(List<Document> feed) {
+        if (momentsFeed == null) {
+            return;
+        }
+
+        loadedFeed.clear();
+        loadedFeedIds.clear();
+        oldestFeedTimestamp = Long.MAX_VALUE;
+        oldestFeedMomentId = null;
+        newestFeedMomentId = null;
+        hasMoreFeed = true;
+
         momentsFeed.getChildren().clear();
         if (feed == null || feed.isEmpty()) {
+            hasMoreFeed = false;
             Label empty = new Label("No moments yet. Share something to start the story.");
             empty.getStyleClass().add("moments-empty");
             momentsFeed.getChildren().add(empty);
             return;
         }
+
+        int added = 0;
         for (Document moment : feed) {
-            momentsFeed.getChildren().add(buildMomentCard(moment));
+            if (registerMoment(moment)) {
+                momentsFeed.getChildren().add(buildMomentCard(moment));
+                added++;
+            }
         }
+        updateFeedCursorState();
+        hasMoreFeed = feed.size() >= FEED_PAGE_SIZE && added > 0;
+    }
+
+    private void appendFeedPage(List<Document> page) {
+        if (momentsFeed == null) {
+            return;
+        }
+        if (page == null || page.isEmpty()) {
+            hasMoreFeed = false;
+            return;
+        }
+
+        int added = 0;
+        for (Document moment : page) {
+            if (registerMoment(moment)) {
+                momentsFeed.getChildren().add(buildMomentCard(moment));
+                added++;
+            }
+        }
+        updateFeedCursorState();
+        if (added == 0) {
+            hasMoreFeed = false;
+            return;
+        }
+        hasMoreFeed = page.size() >= FEED_PAGE_SIZE;
+    }
+
+    private boolean registerMoment(Document moment) {
+        String id = getMomentId(moment);
+        if (id == null || !loadedFeedIds.add(id)) {
+            return false;
+        }
+        loadedFeed.add(moment);
+        return true;
+    }
+
+    private void updateFeedCursorState() {
+        if (loadedFeed.isEmpty()) {
+            oldestFeedTimestamp = Long.MAX_VALUE;
+            oldestFeedMomentId = null;
+            newestFeedMomentId = null;
+            return;
+        }
+        Document newest = loadedFeed.get(0);
+        Document oldest = loadedFeed.get(loadedFeed.size() - 1);
+        newestFeedMomentId = getMomentId(newest);
+        oldestFeedMomentId = getMomentId(oldest);
+        oldestFeedTimestamp = readMomentTimestamp(oldest);
+    }
+
+    private long readMomentTimestamp(Document moment) {
+        if (moment == null) {
+            return 0L;
+        }
+        Object value = moment.get("timestamp");
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return 0L;
+    }
+
+    private void refreshFeedIfNeeded() {
+        if (loadingInitialFeed || loadingMoreFeed) {
+            return;
+        }
+        UserProfile me = Session.getProfile();
+        if (me == null || me.username == null || me.username.isBlank()) {
+            return;
+        }
+
+        Task<FeedRefreshSnapshot> task = new Task<>() {
+            @Override
+            protected FeedRefreshSnapshot call() {
+                List<String> friends = resolveFriendUsernames(me.username);
+                List<Document> latest = MomentsService.getFeedPage(me.username, friends, 1, null, null);
+                String latestId = latest.isEmpty() ? null : getMomentId(latest.get(0));
+                return new FeedRefreshSnapshot(friends, latestId);
+            }
+        };
+
+        task.setOnSucceeded(ev -> {
+            FeedRefreshSnapshot snapshot = task.getValue();
+            if (snapshot == null) {
+                return;
+            }
+
+            boolean audienceChanged = !sameAudience(feedFriendUsernames, snapshot.friendUsernames);
+            boolean latestChanged = !Objects.equals(newestFeedMomentId, snapshot.latestMomentId);
+            boolean shouldReload = audienceChanged
+                    || (snapshot.latestMomentId == null && !loadedFeed.isEmpty())
+                    || (snapshot.latestMomentId != null && (loadedFeed.isEmpty() || latestChanged));
+
+            if (shouldReload) {
+                loadFeed();
+            } else {
+                feedFriendUsernames = snapshot.friendUsernames == null ? List.of() : List.copyOf(snapshot.friendUsernames);
+            }
+        });
+
+        Thread thread = new Thread(task, "moments-feed-refresh");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private boolean sameAudience(List<String> left, List<String> right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        if (left.size() != right.size()) {
+            return false;
+        }
+        return new java.util.HashSet<>(left).equals(new java.util.HashSet<>(right));
     }
 
     private void openMomentDetail(String momentId) {
@@ -271,22 +634,46 @@ public class MomentsController {
         currentDetailMomentId = momentId;
         if (refreshTimeline != null) refreshTimeline.pause();
 
-        Task<Document> task = new Task<>() {
+        Task<MomentDetailPayload> task = new Task<>() {
             @Override
-            protected Document call() {
-                return MomentsService.getMomentById(momentId);
+            protected MomentDetailPayload call() {
+                Document moment = MomentsService.getMomentById(momentId);
+                if (moment == null) {
+                    return new MomentDetailPayload(null, Map.of());
+                }
+
+                Set<String> usernames = new LinkedHashSet<>();
+                String owner = moment.getString("username");
+                if (owner != null && !owner.isBlank()) {
+                    usernames.add(owner);
+                }
+                List<Document> comments = moment.getList("comments", Document.class);
+                if (comments != null) {
+                    for (Document comment : comments) {
+                        String commenter = comment.getString("username");
+                        if (commenter != null && !commenter.isBlank()) {
+                            usernames.add(commenter);
+                        }
+                    }
+                }
+                Map<String, Document> usersByUsername = UserService.getUsersByUsernames(usernames);
+                return new MomentDetailPayload(moment, usersByUsername);
             }
         };
         task.setOnSucceeded(ev -> Platform.runLater(() -> {
-            Document moment = task.getValue();
+            MomentDetailPayload payload = task.getValue();
+            Document moment = payload == null ? null : payload.moment;
             if (moment == null) return;
+            mergeUserDocsIntoCache(payload.usersByUsername);
             momentsDetailContent.getChildren().clear();
             momentsDetailContent.getChildren().add(buildMomentDetail(moment));
             momentsDetailOverlay.setManaged(true);
             momentsDetailOverlay.setVisible(true);
             momentsDetailOverlay.toFront();
         }));
-        new Thread(task, "moment-detail").start();
+        Thread detailThread = new Thread(task, "moment-detail");
+        detailThread.setDaemon(true);
+        detailThread.start();
     }
 
     @FXML
@@ -307,7 +694,7 @@ public class MomentsController {
         long timestamp = moment.containsKey("timestamp") ? moment.getLong("timestamp") : Instant.now().toEpochMilli();
         String momentId = getMomentId(moment);
 
-        Document userDoc = UserService.getUserByUsername(username);
+        Document userDoc = getUserDocCached(username);
         String displayName = userDoc != null ? userDoc.getString("name") : username;
         String profilePic = userDoc != null ? userDoc.getString("profilePic") : null;
 
@@ -327,14 +714,7 @@ public class MomentsController {
         avatar.setFitWidth(40);
         avatar.setFitHeight(40);
         avatar.setPreserveRatio(true);
-        if (profilePic != null && profilePic.startsWith("http")) {
-            avatar.setImage(getCachedImage(profilePic));
-        } else {
-            try {
-                avatar.setImage(new Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
-            } catch (Exception ignored) { }
-        }
-        applyCircleClip(avatar, 20);
+        setAvatarImage(avatar, profilePic, 20);
 
         VBox nameBox = new VBox(2);
         Label nameLabel = new Label(displayName);
@@ -409,19 +789,70 @@ public class MomentsController {
 
         VBox commentsBox = new VBox(8);
         commentsBox.getStyleClass().add("moment-comments");
-        if (comments != null) {
-            for (Document c : comments) {
-                commentsBox.getChildren().add(buildCommentRow(c));
-            }
-        }
-        card.getChildren().add(commentsBox);
+        Map<String, Document> commentsById = indexCommentsById(comments);
+        Document[] activeReplyTarget = new Document[1];
 
-        HBox commentInput = new HBox(8);
-        commentInput.setAlignment(Pos.CENTER_LEFT);
+        Label replyTargetLabel = new Label();
+        replyTargetLabel.getStyleClass().add("moment-comment-replying");
+        replyTargetLabel.setVisible(false);
+        replyTargetLabel.setManaged(false);
+
+        Button clearReplyBtn = new Button("Cancel");
+        clearReplyBtn.getStyleClass().add("moment-comment-reply-clear-btn");
+        clearReplyBtn.setVisible(false);
+        clearReplyBtn.setManaged(false);
+
+        Region replyStateSpacer = new Region();
+        HBox.setHgrow(replyStateSpacer, Priority.ALWAYS);
+        HBox replyStateRow = new HBox(8, replyTargetLabel, replyStateSpacer, clearReplyBtn);
+        replyStateRow.setAlignment(Pos.CENTER_LEFT);
+        replyStateRow.getStyleClass().add("moment-comment-reply-state");
+
         TextField commentField = new TextField();
         commentField.setPromptText("Write a comment...");
         commentField.getStyleClass().add("moment-comment-input");
         HBox.setHgrow(commentField, Priority.ALWAYS);
+
+        Runnable clearReplyTarget = () -> {
+            activeReplyTarget[0] = null;
+            replyTargetLabel.setVisible(false);
+            replyTargetLabel.setManaged(false);
+            clearReplyBtn.setVisible(false);
+            clearReplyBtn.setManaged(false);
+            commentField.setPromptText("Write a comment...");
+        };
+
+        Runnable refreshReplyState = () -> {
+            Document target = activeReplyTarget[0];
+            if (target == null) {
+                clearReplyTarget.run();
+                return;
+            }
+            String replyName = resolveUserDisplayName(target.getString("username"));
+            String replyPreview = buildReplyPreview(target.getString("text"));
+            replyTargetLabel.setText("Replying to " + replyName + ": " + replyPreview);
+            replyTargetLabel.setVisible(true);
+            replyTargetLabel.setManaged(true);
+            clearReplyBtn.setVisible(true);
+            clearReplyBtn.setManaged(true);
+            commentField.setPromptText("Reply to " + replyName + "...");
+        };
+
+        if (comments != null) {
+            for (Document c : comments) {
+                commentsBox.getChildren().add(buildCommentRow(c, commentsById, () -> {
+                    activeReplyTarget[0] = c;
+                    refreshReplyState.run();
+                    commentField.requestFocus();
+                    commentField.positionCaret(commentField.getText() == null ? 0 : commentField.getText().length());
+                }));
+            }
+        }
+        card.getChildren().add(commentsBox);
+        card.getChildren().add(replyStateRow);
+
+        HBox commentInput = new HBox(8);
+        commentInput.setAlignment(Pos.CENTER_LEFT);
         Button postBtn = new Button("Post");
         postBtn.getStyleClass().add("moment-comment-btn");
         commentInput.getChildren().addAll(commentField, postBtn);
@@ -431,13 +862,22 @@ public class MomentsController {
             if (me == null) return;
             String cText = commentField.getText() == null ? "" : commentField.getText().trim();
             if (cText.isEmpty()) return;
-            if (cText.length() > 200) cText = cText.substring(0, 200);
-            MomentsService.addComment(momentId, me.username, cText);
+            if (cText.length() > COMMENT_MAX_TEXT) cText = cText.substring(0, COMMENT_MAX_TEXT);
+
+            Document target = activeReplyTarget[0];
+            String parentCommentId = target == null ? null : resolveCommentId(target);
+            String replyToUsername = target == null ? null : resolveUserDisplayName(target.getString("username"));
+            String replyPreview = target == null ? null : target.getString("text");
+
+            MomentsService.addComment(momentId, me.username, cText, parentCommentId, replyToUsername, replyPreview);
+            commentField.clear();
+            clearReplyTarget.run();
             openMomentDetail(momentId);
             loadFeed();
         };
         postBtn.setOnAction(e -> postComment.run());
         commentField.setOnAction(e -> postComment.run());
+        clearReplyBtn.setOnAction(e -> clearReplyTarget.run());
 
         return card;
     }
@@ -449,7 +889,7 @@ public class MomentsController {
         long timestamp = moment.containsKey("timestamp") ? moment.getLong("timestamp") : Instant.now().toEpochMilli();
         String momentId = getMomentId(moment);
 
-        Document userDoc = UserService.getUserByUsername(username);
+        Document userDoc = getUserDocCached(username);
         String displayName = userDoc != null ? userDoc.getString("name") : username;
         String profilePic = userDoc != null ? userDoc.getString("profilePic") : null;
 
@@ -473,14 +913,7 @@ public class MomentsController {
         avatar.setFitWidth(38);
         avatar.setFitHeight(38);
         avatar.setPreserveRatio(true);
-        if (profilePic != null && profilePic.startsWith("http")) {
-            avatar.setImage(getCachedImage(profilePic));
-        } else {
-            try {
-                avatar.setImage(new Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
-            } catch (Exception ignored) { }
-        }
-        applyCircleClip(avatar, 19);
+        setAvatarImage(avatar, profilePic, 19);
 
         VBox nameBox = new VBox(2);
         Label nameLabel = new Label(displayName);
@@ -559,17 +992,24 @@ public class MomentsController {
         return card;
     }
 
-    private HBox buildCommentRow(Document comment) {
+    private HBox buildCommentRow(Document comment, Map<String, Document> commentsById, Runnable onReply) {
         String username = comment.getString("username");
         String text = comment.getString("text");
 
-        Document userDoc = UserService.getUserByUsername(username);
+        Document userDoc = getUserDocCached(username);
         String displayName = userDoc != null ? userDoc.getString("name") : username;
         String profilePic = userDoc != null ? userDoc.getString("profilePic") : null;
+
+        String parentCommentId = resolveParentCommentId(comment);
+        Document parentComment = parentCommentId == null || commentsById == null ? null : commentsById.get(parentCommentId);
 
         HBox row = new HBox(6);
         row.setAlignment(Pos.TOP_LEFT);
         row.getStyleClass().add("moment-comment-row");
+        if (parentComment != null) {
+            row.getStyleClass().add("moment-comment-row-reply");
+            row.setPadding(new Insets(0, 0, 0, COMMENT_REPLY_INDENT));
+        }
 
         Label nameLabel = new Label(displayName);
         nameLabel.getStyleClass().add("moment-comment-name");
@@ -580,28 +1020,132 @@ public class MomentsController {
         textLabel.setWrapText(true);
         textLabel.getStyleClass().add("moment-comment-text");
 
-        VBox textBox = new VBox(2, nameLabel, textLabel);
+        VBox textBox = new VBox(2);
         textBox.setAlignment(Pos.TOP_LEFT);
+        textBox.getChildren().add(nameLabel);
+
+        if (parentComment != null) {
+            String parentDisplayName = resolveUserDisplayName(parentComment.getString("username"));
+            String parentPreview = firstNonBlank(comment.getString("replyPreview"), parentComment.getString("text"));
+            Label replyContext = new Label("↳ " + parentDisplayName + ": " + buildReplyPreview(parentPreview));
+            replyContext.getStyleClass().add("moment-comment-reply-context");
+            textBox.getChildren().add(replyContext);
+        }
+
+        textBox.getChildren().add(textLabel);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button replyBtn = new Button("Reply");
+        replyBtn.getStyleClass().add("moment-comment-reply-btn");
+        replyBtn.setFocusTraversable(false);
+        replyBtn.setOnAction(e -> {
+            if (onReply != null) {
+                onReply.run();
+            }
+        });
 
         ImageView avatar = new ImageView();
         avatar.setFitWidth(22);
         avatar.setFitHeight(22);
         avatar.setPreserveRatio(true);
-        if (profilePic != null && profilePic.startsWith("http")) {
-            avatar.setImage(getCachedImage(profilePic));
-        } else {
-            try {
-                avatar.setImage(new Image(getClass().getResourceAsStream("/assets/default_avatar.png")));
-            } catch (Exception ignored) { }
-        }
-        applyCircleClip(avatar, 11);
+        setAvatarImage(avatar, profilePic, 11);
         avatar.getStyleClass().add("moment-comment-avatar");
 
-        row.getChildren().addAll(textBox, spacer, avatar);
+        row.getChildren().addAll(textBox, spacer, replyBtn, avatar);
         return row;
+    }
+
+    private Map<String, Document> indexCommentsById(List<Document> comments) {
+        Map<String, Document> commentsById = new HashMap<>();
+        if (comments == null) {
+            return commentsById;
+        }
+        for (Document comment : comments) {
+            String id = resolveCommentId(comment);
+            if (id != null) {
+                commentsById.putIfAbsent(id, comment);
+            }
+        }
+        return commentsById;
+    }
+
+    private String resolveCommentId(Document comment) {
+        if (comment == null) {
+            return null;
+        }
+
+        String explicitId = firstNonBlank(
+                comment.getString("commentId"),
+                comment.getString("id"),
+                comment.getString("_id")
+        );
+        if (explicitId != null) {
+            return explicitId;
+        }
+
+        return buildLegacyCommentId(comment);
+    }
+
+    private String resolveParentCommentId(Document comment) {
+        if (comment == null) {
+            return null;
+        }
+        return firstNonBlank(
+                comment.getString("parentCommentId"),
+                comment.getString("replyToCommentId"),
+                comment.getString("replyToId"),
+                comment.getString("parentId"),
+                comment.getString("replyTo")
+        );
+    }
+
+    private String buildLegacyCommentId(Document comment) {
+        if (comment == null) {
+            return null;
+        }
+        String username = firstNonBlank(comment.getString("username"), "unknown");
+        String text = firstNonBlank(comment.getString("text"), "");
+        Object timestampObj = comment.get("timestamp");
+        String timestamp = timestampObj == null ? "0" : String.valueOf(timestampObj);
+        int textHash = text.hashCode();
+        return "legacy:" + username + ":" + timestamp + ":" + textHash;
+    }
+
+    private String resolveUserDisplayName(String username) {
+        if (username == null || username.isBlank()) {
+            return "Unknown";
+        }
+        Document doc = getUserDocCached(username);
+        String displayName = doc == null ? null : doc.getString("name");
+        return firstNonBlank(displayName, username);
+    }
+
+    private String buildReplyPreview(String text) {
+        if (text == null || text.isBlank()) {
+            return "message";
+        }
+        String normalized = text.trim().replaceAll("\\s+", " ");
+        if (normalized.length() <= 72) {
+            return normalized;
+        }
+        return normalized.substring(0, 71) + "…";
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null) {
+                String trimmed = value.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        }
+        return null;
     }
 
     private void editMomentCaption(Document moment) {
@@ -641,7 +1185,7 @@ public class MomentsController {
                 "Could not update the moment picture.",
                 () -> {
                     byte[] data = compressImageToLimit(file, MAX_IMAGE_BYTES);
-                    String imageUrl = ImgBbService.uploadImage(data).imageUrl;
+                    String imageUrl = ImgBbService.uploadImage(data, 7 * 24 * 60 * 60).imageUrl;
                     return MomentsService.updateMomentImage(momentId, imageUrl);
                 },
                 () -> refreshMomentViews(momentId)
@@ -818,24 +1362,10 @@ public class MomentsController {
             if (refreshTimeline != null) refreshTimeline.stop();
             ViewProfileController.targetUsername = username;
             ViewProfileController.returnTarget = ViewProfileController.ReturnTarget.MOMENTS;
-
-            Stage stage = (Stage) momentsFeed.getScene().getWindow();
-            Scene scene = stage.getScene();
-            Parent root = new FXMLLoader(MainApp.class.getResource("/view_profile.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = momentsFeed == null ? null : momentsFeed.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/view_profile.fxml", cssPath);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -845,23 +1375,10 @@ public class MomentsController {
     private void onBackToMain(javafx.event.ActionEvent event) {
         try {
             if (refreshTimeline != null) refreshTimeline.stop();
-            Stage stage = (Stage) momentsFeed.getScene().getWindow();
-            Scene scene = stage.getScene();
-            Parent root = new FXMLLoader(MainApp.class.getResource("/main.fxml")).load();
-            root.setOpacity(0);
-
-            FadeTransition out = new FadeTransition(Duration.millis(200), scene.getRoot());
-            out.setFromValue(1);
-            out.setToValue(0);
-            out.setOnFinished(ev -> {
-                scene.setRoot(root);
-                ThemeManager.applyMainTheme(scene);
-                FadeTransition in = new FadeTransition(Duration.millis(250), root);
-                in.setFromValue(0);
-                in.setToValue(1);
-                in.play();
-            });
-            out.play();
+            Scene scene = momentsFeed == null ? null : momentsFeed.getScene();
+            if (scene == null) return;
+            String cssPath = MainApp.currentTheme == MainApp.Theme.DARK ? "/main_dark.css" : "/main.css";
+            SceneNavigator.swapRootWithFade(scene, "/main.fxml", cssPath);
         } catch (Exception e) {
             e.printStackTrace();
         }
